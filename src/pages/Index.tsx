@@ -1,13 +1,32 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import { useState } from 'react';
+import Header from '@/components/Header';
+import Hero from '@/components/Hero';
+import ProductCategories from '@/components/ProductCategories';
+import FeaturedProducts from '@/components/FeaturedProducts';
+import Footer from '@/components/Footer';
+import { CartProvider } from '@/context/CartContext';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <CartProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        {/* Header with navigation and cart */}
+        <Header />
+        
+        {/* Hero section with main banner */}
+        <Hero />
+        
+        {/* Product categories section */}
+        <ProductCategories />
+        
+        {/* Featured products section */}
+        <FeaturedProducts />
+        
+        {/* Footer */}
+        <Footer />
       </div>
-    </div>
+    </CartProvider>
   );
 };
 
