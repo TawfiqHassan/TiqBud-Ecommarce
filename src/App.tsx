@@ -14,6 +14,7 @@ import AdminAuth from "./pages/AdminAuth";
 import Checkout from "./pages/Checkout";
 import NotFound from "./pages/NotFound";
 import ProductDetail from "./pages/ProductDetail";
+import Compare from "./pages/Compare";
 
 // Admin pages
 import AdminLayout from "./components/admin/AdminLayout";
@@ -30,6 +31,9 @@ import BlogPosts from "./pages/admin/BlogPosts";
 import Reviews from "./pages/admin/Reviews";
 import NavbarSettings from "./pages/admin/NavbarSettings";
 import Account from "./pages/Account";
+import Coupons from "./pages/admin/Coupons";
+import Inventory from "./pages/admin/Inventory";
+import SalesReports from "./pages/admin/SalesReports";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +55,7 @@ const App = () => (
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/account" element={<Account />} />
             <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/compare" element={<Compare />} />
             
             {/* Admin routes */}
             <Route path="/admin" element={<AdminLayout />}>
@@ -66,6 +71,9 @@ const App = () => (
               <Route path="navbar" element={<NavbarSettings />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="coupons" element={<Coupons />} />
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="sales-reports" element={<SalesReports />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />
