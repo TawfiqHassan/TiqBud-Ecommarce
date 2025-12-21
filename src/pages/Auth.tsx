@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, ArrowLeft, Mail } from 'lucide-react';
 import { z } from 'zod';
 import logo from '@/assets/logo.png';
 
@@ -18,19 +19,33 @@ const loginSchema = z.object({
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
+  username: z.string().trim().min(3, 'Username must be at least 3 characters').max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
   email: z.string().trim().email('Please enter a valid email address').max(255),
+  phone: z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15),
+  city: z.string().trim().min(2, 'City is required').max(100),
   password: z.string().min(6, 'Password must be at least 6 characters').max(72),
-  confirmPassword: z.string()
+  confirmPassword: z.string(),
+  securityQuestion: z.string().min(1, 'Please select a security question'),
+  securityAnswer: z.string().trim().min(2, 'Security answer is required').max(100)
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"]
 });
 
+const securityQuestions = [
+  "What is your mother's maiden name?",
+  "What was the name of your first pet?",
+  "What city were you born in?",
+  "What is your favorite movie?",
+  "What was the name of your elementary school?"
+];
+
 const Auth: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, isApproved, signIn, signUp, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { user, isAdmin, isApproved, signIn, signUp, resetPassword, isLoading } = useAuth();
   
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'forgot'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -38,21 +53,37 @@ const Auth: React.FC = () => {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
+  // Forgot password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  
   // Signup form
   const [signupFullName, setSignupFullName] = useState('');
+  const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
+  const [signupCity, setSignupCity] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [signupSecurityQuestion, setSignupSecurityQuestion] = useState('');
+  const [signupSecurityAnswer, setSignupSecurityAnswer] = useState('');
 
   useEffect(() => {
     if (user && !isLoading) {
       if (!isApproved && !isAdmin) {
-        // User is logged in but not approved - show pending message
         return;
       }
       navigate(isAdmin ? '/admin' : '/');
     }
   }, [user, isAdmin, isApproved, isLoading, navigate]);
+
+  // Check for reset mode in URL
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'reset') {
+      toast.info('You can now set a new password');
+    }
+  }, [searchParams]);
 
   // Show pending approval message
   if (user && !isApproved && !isAdmin && !isLoading) {
@@ -116,7 +147,6 @@ const Auth: React.FC = () => {
     }
     
     toast.success('Welcome back!');
-    // Redirect handled by auth state effect (user + role).
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -125,9 +155,14 @@ const Auth: React.FC = () => {
     try {
       signupSchema.parse({
         fullName: signupFullName,
+        username: signupUsername,
         email: signupEmail,
+        phone: signupPhone,
+        city: signupCity,
         password: signupPassword,
-        confirmPassword: signupConfirmPassword
+        confirmPassword: signupConfirmPassword,
+        securityQuestion: signupSecurityQuestion,
+        securityAnswer: signupSecurityAnswer
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -137,7 +172,14 @@ const Auth: React.FC = () => {
     }
     
     setIsSubmitting(true);
-    const { error } = await signUp(signupEmail, signupPassword, signupFullName);
+    const { error } = await signUp(signupEmail, signupPassword, {
+      fullName: signupFullName,
+      phone: signupPhone,
+      city: signupCity,
+      username: signupUsername,
+      securityQuestion: signupSecurityQuestion,
+      securityAnswer: signupSecurityAnswer
+    });
     setIsSubmitting(false);
     
     if (error) {
@@ -151,8 +193,28 @@ const Auth: React.FC = () => {
       return;
     }
     
-    toast.success('Account created successfully!');
-    // Redirect handled by auth state effect (user + role).
+    toast.success('Account created! Awaiting admin approval.');
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!forgotEmail.trim() || !z.string().email().safeParse(forgotEmail).success) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const { error } = await resetPassword(forgotEmail);
+    setIsSubmitting(false);
+    
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    
+    setResetSent(true);
+    toast.success('Password reset email sent!');
   };
 
   if (isLoading) {
@@ -182,17 +244,19 @@ const Auth: React.FC = () => {
       <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
+            {activeTab === 'login' ? 'Welcome Back' : activeTab === 'signup' ? 'Create Account' : 'Reset Password'}
           </CardTitle>
           <CardDescription>
             {activeTab === 'login' 
               ? 'Sign in to your TiqBud account' 
-              : 'Join TiqBud for the best tech deals'}
+              : activeTab === 'signup'
+              ? 'Join TiqBud for the best tech deals'
+              : 'Enter your email to reset password'}
           </CardDescription>
         </CardHeader>
         
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup' | 'forgot')}>
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -244,22 +308,45 @@ const Auth: React.FC = () => {
                 >
                   {isSubmitting ? 'Signing in...' : 'Sign In'}
                 </Button>
+                
+                <Button
+                  type="button"
+                  variant="link"
+                  className="w-full text-muted-foreground"
+                  onClick={() => setActiveTab('forgot')}
+                >
+                  Forgot your password?
+                </Button>
               </form>
             </TabsContent>
             
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="John Doe"
-                    value={signupFullName}
-                    onChange={(e) => setSignupFullName(e.target.value)}
-                    required
-                    autoComplete="name"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={signupFullName}
+                      onChange={(e) => setSignupFullName(e.target.value)}
+                      required
+                      autoComplete="name"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-username">Username</Label>
+                    <Input
+                      id="signup-username"
+                      type="text"
+                      placeholder="johndoe123"
+                      value={signupUsername}
+                      onChange={(e) => setSignupUsername(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
@@ -273,6 +360,32 @@ const Auth: React.FC = () => {
                     required
                     autoComplete="email"
                   />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-phone">Phone Number</Label>
+                    <Input
+                      id="signup-phone"
+                      type="tel"
+                      placeholder="+880 1XXX-XXXXXX"
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-city">City/Location</Label>
+                    <Input
+                      id="signup-city"
+                      type="text"
+                      placeholder="Dhaka"
+                      value={signupCity}
+                      onChange={(e) => setSignupCity(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
@@ -312,6 +425,32 @@ const Auth: React.FC = () => {
                   />
                 </div>
                 
+                <div className="space-y-2">
+                  <Label>Security Question</Label>
+                  <Select value={signupSecurityQuestion} onValueChange={setSignupSecurityQuestion}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a security question" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {securityQuestions.map((q) => (
+                        <SelectItem key={q} value={q}>{q}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="signup-answer">Security Answer</Label>
+                  <Input
+                    id="signup-answer"
+                    type="text"
+                    placeholder="Your answer"
+                    value={signupSecurityAnswer}
+                    onChange={(e) => setSignupSecurityAnswer(e.target.value)}
+                    required
+                  />
+                </div>
+                
                 <Button 
                   type="submit" 
                   className="w-full bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
@@ -320,6 +459,61 @@ const Auth: React.FC = () => {
                   {isSubmitting ? 'Creating account...' : 'Create Account'}
                 </Button>
               </form>
+            </TabsContent>
+            
+            <TabsContent value="forgot">
+              {resetSent ? (
+                <div className="text-center py-6">
+                  <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <Mail className="w-8 h-8 text-green-500" />
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2">Check your email</h3>
+                  <p className="text-muted-foreground text-sm mb-4">
+                    We've sent a password reset link to {forgotEmail}
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActiveTab('login');
+                      setResetSent(false);
+                      setForgotEmail('');
+                    }}
+                  >
+                    Back to Login
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="forgot-email">Email Address</Label>
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="w-full text-muted-foreground"
+                    onClick={() => setActiveTab('login')}
+                  >
+                    Back to Login
+                  </Button>
+                </form>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>
