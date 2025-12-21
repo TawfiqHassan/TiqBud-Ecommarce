@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 import logo from '@/assets/logo.png';
 
 const Footer = () => {
+  const { data: siteSettings } = useSiteSettings();
+  const footer = siteSettings?.footer;
+  
   return (
     <footer className="bg-card border-t border-border">
       <div className="container mx-auto px-4 py-12">
@@ -13,7 +17,7 @@ const Footer = () => {
               <img src={logo} alt="TiqBud" className="h-12 w-auto" />
             </Link>
             <p className="text-muted-foreground text-sm">
-              Your trusted destination for premium tech accessories and gadgets in Bangladesh.
+              {footer?.about || 'Your trusted destination for premium tech accessories and gadgets in Bangladesh.'}
             </p>
             
             {/* Social media links */}
@@ -79,15 +83,15 @@ const Footer = () => {
             <div className="space-y-3 text-sm">
               <div className="flex items-start gap-2 text-muted-foreground">
                 <MapPin className="w-4 h-4 mt-0.5 text-brand-gold flex-shrink-0" />
-                <span>Bashundhara City, Panthapath, Dhaka 1215</span>
+                <span>{footer?.address || 'Bashundhara City, Panthapath, Dhaka 1215'}</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Phone className="w-4 h-4 text-brand-gold flex-shrink-0" />
-                <span>+880 1XXX-XXXXXX</span>
+                <span>{footer?.phone || '+880 1XXX-XXXXXX'}</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Mail className="w-4 h-4 text-brand-gold flex-shrink-0" />
-                <span>support@tiqbud.com.bd</span>
+                <span>{footer?.email || 'support@tiqbud.com.bd'}</span>
               </div>
             </div>
           </div>

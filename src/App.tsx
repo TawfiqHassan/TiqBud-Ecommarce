@@ -21,6 +21,9 @@ import Orders from "./pages/admin/Orders";
 import Customers from "./pages/admin/Customers";
 import Analytics from "./pages/admin/Analytics";
 import Settings from "./pages/admin/Settings";
+import Categories from "./pages/admin/Categories";
+import Users from "./pages/admin/Users";
+import SiteContent from "./pages/admin/SiteContent";
 
 const queryClient = new QueryClient();
 
@@ -44,8 +47,11 @@ const App = () => (
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="products" element={<Products />} />
+              <Route path="categories" element={<Categories />} />
               <Route path="orders" element={<Orders />} />
               <Route path="customers" element={<Customers />} />
+              <Route path="users" element={<Users />} />
+              <Route path="site-content" element={<SiteContent />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
             </Route>
