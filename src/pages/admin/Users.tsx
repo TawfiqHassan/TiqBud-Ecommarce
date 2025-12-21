@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,8 +13,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Check, X, Shield, Users, Clock } from 'lucide-react';
+import { Check, X, Shield, Users, Clock, Trash2 } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -27,6 +39,7 @@ interface UserProfile {
 
 const AdminUsers: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['admin-users'],
@@ -92,10 +105,27 @@ const AdminUsers: React.FC = () => {
     onError: (error: Error) => toast.error(error.message)
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      // Delete user roles first
+      await supabase.from('user_roles').delete().eq('user_id', userId);
+      // Delete profile
+      const { error } = await supabase.from('profiles').delete().eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success('User deleted successfully');
+    },
+    onError: (error: Error) => toast.error(error.message)
+  });
+
   const pendingUsers = users?.filter(u => !u.is_approved) || [];
   const approvedUsers = users?.filter(u => u.is_approved) || [];
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString();
+
+  const isSelf = (userId: string) => currentUser?.id === userId;
 
   if (isLoading) {
     return (
@@ -151,14 +181,31 @@ const AdminUsers: React.FC = () => {
                           <Check className="h-4 w-4 mr-1" />
                           Approve
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => approveMutation.mutate({ userId: user.user_id, approved: false })}
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Reject
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="destructive">
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete User?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete {user.full_name || user.email}'s profile. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => deleteUserMutation.mutate(user.user_id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -192,7 +239,10 @@ const AdminUsers: React.FC = () => {
                 <TableRow key={user.id}>
                   <TableCell>
                     <div>
-                      <p className="font-medium">{user.full_name || 'No name'}</p>
+                      <p className="font-medium">
+                        {user.full_name || 'No name'}
+                        {isSelf(user.user_id) && <span className="ml-2 text-xs text-muted-foreground">(You)</span>}
+                      </p>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                     </div>
                   </TableCell>
@@ -208,24 +258,52 @@ const AdminUsers: React.FC = () => {
                   <TableCell>{formatDate(user.created_at)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      {/* Toggle admin - disable for self */}
                       <Button 
                         size="sm" 
                         variant={user.role === 'admin' ? 'destructive' : 'outline'}
+                        disabled={isSelf(user.user_id)}
                         onClick={() => toggleAdminMutation.mutate({ 
                           userId: user.user_id, 
                           isAdmin: user.role === 'admin' 
                         })}
+                        title={isSelf(user.user_id) ? "You cannot change your own admin role" : ""}
                       >
                         <Shield className="h-4 w-4 mr-1" />
                         {user.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => approveMutation.mutate({ userId: user.user_id, approved: false })}
-                      >
-                        Revoke Access
-                      </Button>
+                      
+                      {/* Delete user - disable for self */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            disabled={isSelf(user.user_id)}
+                            title={isSelf(user.user_id) ? "You cannot delete your own account" : ""}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete User?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete {user.full_name || user.email}'s profile. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => deleteUserMutation.mutate(user.user_id)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </TableCell>
                 </TableRow>
