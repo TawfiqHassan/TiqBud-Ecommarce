@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -29,8 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Package, Upload, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, Upload, Download, FileSpreadsheet, ChevronDown, Copy, MoreHorizontal } from 'lucide-react';
 import { useCategories } from '@/hooks/useProducts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -70,10 +78,14 @@ const AdminProducts: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+  const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [bulkImportData, setBulkImportData] = useState<BulkImportRow[]>([]);
   const [importProgress, setImportProgress] = useState(0);
   const [isImporting, setIsImporting] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [bulkEditField, setBulkEditField] = useState<'stock' | 'price' | 'status' | 'category' | ''>('');
+  const [bulkEditValue, setBulkEditValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
@@ -186,6 +198,121 @@ const AdminProducts: React.FC = () => {
       toast.error(error.message);
     }
   });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from('products').delete().in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setSelectedProducts([]);
+      toast.success('Products deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Bulk update mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Partial<Product> }) => {
+      const { error } = await supabase.from('products').update(updates).in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setSelectedProducts([]);
+      setIsBulkEditDialogOpen(false);
+      setBulkEditField('');
+      setBulkEditValue('');
+      toast.success('Products updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Duplicate product mutation
+  const duplicateMutation = useMutation({
+    mutationFn: async (product: Product) => {
+      const { error } = await supabase.from('products').insert({
+        name: `${product.name} (Copy)`,
+        description: product.description,
+        price: product.price,
+        original_price: product.original_price,
+        category_id: product.category_id,
+        image_url: product.image_url,
+        stock: product.stock,
+        is_featured: false,
+        is_active: false,
+        sku: product.sku ? `${product.sku}-COPY` : null,
+        brand: product.brand
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast.success('Product duplicated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (products && selectedProducts.length === products.length) {
+      setSelectedProducts([]);
+    } else if (products) {
+      setSelectedProducts(products.map(p => p.id));
+    }
+  };
+
+  const toggleSelectProduct = (id: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  };
+
+  // Bulk action handlers
+  const handleBulkDelete = () => {
+    if (selectedProducts.length === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedProducts.length} products?`)) {
+      bulkDeleteMutation.mutate(selectedProducts);
+    }
+  };
+
+  const handleBulkStatusChange = (isActive: boolean) => {
+    if (selectedProducts.length === 0) return;
+    bulkUpdateMutation.mutate({ ids: selectedProducts, updates: { is_active: isActive } });
+  };
+
+  const handleBulkEdit = () => {
+    if (!bulkEditField || !bulkEditValue) {
+      toast.error('Please select a field and enter a value');
+      return;
+    }
+
+    let updates: Partial<Product> = {};
+    switch (bulkEditField) {
+      case 'stock':
+        updates = { stock: parseInt(bulkEditValue) };
+        break;
+      case 'price':
+        updates = { price: parseFloat(bulkEditValue) };
+        break;
+      case 'category':
+        updates = { category_id: bulkEditValue };
+        break;
+    }
+
+    bulkUpdateMutation.mutate({ ids: selectedProducts, updates });
+  };
 
   const resetForm = () => {
     setFormData({
@@ -717,22 +844,142 @@ const AdminProducts: React.FC = () => {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search products..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      {/* Search and Bulk Actions */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Bulk Actions Bar */}
+        {selectedProducts.length > 0 && (
+          <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-lg">
+            <span className="text-sm font-medium">{selectedProducts.length} selected</span>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Bulk Actions <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleBulkStatusChange(true)}>
+                  Set Active
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleBulkStatusChange(false)}>
+                  Set Inactive
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => { setBulkEditField('stock'); setIsBulkEditDialogOpen(true); }}>
+                  Update Stock
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setBulkEditField('price'); setIsBulkEditDialogOpen(true); }}>
+                  Update Price
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setBulkEditField('category'); setIsBulkEditDialogOpen(true); }}>
+                  Change Category
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={handleBulkDelete}
+                  className="text-destructive focus:text-destructive"
+                >
+                  Delete Selected
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button variant="ghost" size="sm" onClick={() => setSelectedProducts([])}>
+              Clear
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={isBulkEditDialogOpen} onOpenChange={setIsBulkEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Update {selectedProducts.length} Products</DialogTitle>
+            <DialogDescription>
+              {bulkEditField === 'stock' && 'Set new stock value for selected products'}
+              {bulkEditField === 'price' && 'Set new price for selected products'}
+              {bulkEditField === 'category' && 'Change category for selected products'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {bulkEditField === 'stock' && (
+              <div>
+                <Label>New Stock Value</Label>
+                <Input
+                  type="number"
+                  value={bulkEditValue}
+                  onChange={(e) => setBulkEditValue(e.target.value)}
+                  placeholder="Enter stock quantity"
+                />
+              </div>
+            )}
+            {bulkEditField === 'price' && (
+              <div>
+                <Label>New Price (৳)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={bulkEditValue}
+                  onChange={(e) => setBulkEditValue(e.target.value)}
+                  placeholder="Enter new price"
+                />
+              </div>
+            )}
+            {bulkEditField === 'category' && (
+              <div>
+                <Label>Select Category</Label>
+                <Select value={bulkEditValue} onValueChange={setBulkEditValue}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories?.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsBulkEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleBulkEdit}
+                disabled={bulkUpdateMutation.isPending}
+                className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+              >
+                Update Products
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Products Table */}
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={products && products.length > 0 && selectedProducts.length === products.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead>Product</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Price</TableHead>
@@ -744,13 +991,19 @@ const AdminProducts: React.FC = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold mx-auto"></div>
                 </TableCell>
               </TableRow>
             ) : products && products.length > 0 ? (
               products.map((product) => (
-                <TableRow key={product.id}>
+                <TableRow key={product.id} className={selectedProducts.includes(product.id) ? 'bg-muted/50' : ''}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedProducts.includes(product.id)}
+                      onCheckedChange={() => toggleSelectProduct(product.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       {product.image_url ? (
@@ -805,33 +1058,41 @@ const AdminProducts: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => openEditDialog(product)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this product?')) {
-                            deleteMutation.mutate(product.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(product)}>
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => duplicateMutation.mutate(product)}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this product?')) {
+                              deleteMutation.mutate(product.id);
+                            }
+                          }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No products found
                 </TableCell>
               </TableRow>
