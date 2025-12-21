@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Search, Menu, X, ChevronDown, User } from 'lucide-react';
+import { ShoppingCart, Search, Menu, X, ChevronDown, User, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { useNotifications } from '@/hooks/useNotifications';
 import { supabase } from '@/integrations/supabase/client';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useNavbarSettings, MenuItem } from '@/hooks/useNavbarSettings';
@@ -18,6 +19,12 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface SearchProduct {
   id: string;
@@ -36,6 +43,7 @@ const Header = () => {
   const [expandedMobile, setExpandedMobile] = useState<string | null>(null);
   const { getTotalItems } = useCart();
   const { user } = useAuth();
+  const { notifications, unreadCount, markAsRead } = useNotifications();
   const { data: siteSettings } = useSiteSettings();
   const { data: menuItems = [] } = useNavbarSettings();
   const location = useLocation();
@@ -207,8 +215,49 @@ const Header = () => {
               </div>
             </div>
 
-            {/* Cart, Account and menu buttons */}
+            {/* Cart, Notifications, Account and menu buttons */}
             <div className="flex items-center space-x-2">
+              {/* Notifications Bell */}
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="relative text-foreground hover:text-brand-gold hover:bg-secondary"
+                    >
+                      <Bell className="w-5 h-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.slice(0, 10).map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          onClick={() => {
+                            markAsRead(notification.id);
+                            if (notification.link) navigate(notification.link);
+                          }}
+                          className={`flex flex-col items-start gap-1 cursor-pointer ${!notification.is_read ? 'bg-muted/50' : ''}`}
+                        >
+                          <span className="font-medium">{notification.title}</span>
+                          <span className="text-xs text-muted-foreground line-clamp-2">{notification.message}</span>
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No notifications
+                      </div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               <Button
                 variant="ghost"
                 size="sm"

@@ -16,7 +16,10 @@ import {
   UserCog,
   Layout,
   FileText,
-  Star
+  Star,
+  Tag,
+  AlertTriangle,
+  TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,12 +44,15 @@ const AdminLayout: React.FC = () => {
     { path: '/admin/products', icon: Package, label: 'Products' },
     { path: '/admin/categories', icon: FolderOpen, label: 'Categories' },
     { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
+    { path: '/admin/inventory', icon: AlertTriangle, label: 'Inventory Alerts' },
     { path: '/admin/customers', icon: Users, label: 'Customers' },
     { path: '/admin/users', icon: UserCog, label: 'User Management' },
+    { path: '/admin/coupons', icon: Tag, label: 'Coupons' },
     { path: '/admin/blog-posts', icon: FileText, label: 'Blog Posts' },
     { path: '/admin/reviews', icon: Star, label: 'Reviews' },
     { path: '/admin/site-content', icon: Layout, label: 'Site Content' },
     { path: '/admin/navbar', icon: Menu, label: 'Navbar' },
+    { path: '/admin/sales-reports', icon: TrendingUp, label: 'Sales Reports' },
     { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];

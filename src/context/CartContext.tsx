@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 
@@ -43,150 +43,157 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const [initialized, setInitialized] = useState(false);
+  
+  // Get user safely - AuthContext may not be available in all routes
+  let user: any = null;
+  try {
+    const auth = useAuth();
+    user = auth?.user;
+  } catch {
+    // AuthContext not available, use localStorage only
+  }
 
   // Load cart from database when user logs in
   useEffect(() => {
-    if (user) {
-      loadCartFromDatabase();
-    } else {
-      // Load from localStorage for non-logged-in users
-      const savedCart = localStorage.getItem('cart');
-      if (savedCart) {
-        setCartItems(JSON.parse(savedCart));
-      }
-    }
-  }, [user]);
-
-  // Save to localStorage for non-logged-in users
-  useEffect(() => {
-    if (!user) {
-      localStorage.setItem('cart', JSON.stringify(cartItems));
-    }
-  }, [cartItems, user]);
-
-  // Load cart from Supabase
-  const loadCartFromDatabase = async () => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      if (data) {
-        const items: CartItem[] = data.map(item => ({
-          id: item.product_id || item.id,
-          name: item.product_name,
-          price: Number(item.unit_price),
-          image: item.product_image || '',
-          quantity: item.quantity
-        }));
-        setCartItems(items);
-        
-        // Merge localStorage cart with database cart
-        const savedCart = localStorage.getItem('cart');
-        if (savedCart) {
-          const localItems: CartItem[] = JSON.parse(savedCart);
-          for (const localItem of localItems) {
-            const exists = items.find(i => i.id === localItem.id);
-            if (!exists) {
-              await addToDatabase(localItem);
-            }
-          }
-          localStorage.removeItem('cart');
-          // Reload to get merged cart
-          const { data: updatedData } = await supabase
+    const loadCart = async () => {
+      if (user) {
+        setIsLoading(true);
+        try {
+          const { data, error } = await supabase
             .from('cart_items')
             .select('*')
             .eq('user_id', user.id);
-          
-          if (updatedData) {
-            setCartItems(updatedData.map(item => ({
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            const items: CartItem[] = data.map(item => ({
               id: item.product_id || item.id,
               name: item.product_name,
               price: Number(item.unit_price),
               image: item.product_image || '',
               quantity: item.quantity
-            })));
+            }));
+            setCartItems(items);
+          } else {
+            // Check if there's a local cart to sync
+            const savedCart = localStorage.getItem('cart');
+            if (savedCart) {
+              const localItems: CartItem[] = JSON.parse(savedCart);
+              if (localItems.length > 0) {
+                // Sync local cart to database
+                for (const item of localItems) {
+                  await supabase.from('cart_items').upsert({
+                    user_id: user.id,
+                    product_id: item.id,
+                    product_name: item.name,
+                    product_image: item.image,
+                    unit_price: item.price,
+                    quantity: item.quantity
+                  }, { onConflict: 'user_id,product_id' });
+                }
+                setCartItems(localItems);
+                localStorage.removeItem('cart');
+              }
+            }
           }
+        } catch (error) {
+          console.error('Error loading cart:', error);
+          // Fallback to localStorage
+          const savedCart = localStorage.getItem('cart');
+          if (savedCart) {
+            setCartItems(JSON.parse(savedCart));
+          }
+        } finally {
+          setIsLoading(false);
+          setInitialized(true);
         }
+      } else {
+        // Load from localStorage for non-logged-in users
+        const savedCart = localStorage.getItem('cart');
+        if (savedCart) {
+          setCartItems(JSON.parse(savedCart));
+        }
+        setInitialized(true);
       }
-    } catch (error) {
-      console.error('Error loading cart:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  // Add item to database
-  const addToDatabase = async (item: CartItem) => {
+    loadCart();
+  }, [user?.id]);
+
+  // Save to localStorage for non-logged-in users
+  useEffect(() => {
+    if (initialized && !user) {
+      localStorage.setItem('cart', JSON.stringify(cartItems));
+    }
+  }, [cartItems, user, initialized]);
+
+  // Sync cart item to database
+  const syncToDatabase = useCallback(async (item: CartItem) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('cart_items')
-        .upsert({
-          user_id: user.id,
-          product_id: item.id,
-          product_name: item.name,
-          product_image: item.image,
-          unit_price: item.price,
-          quantity: item.quantity
-        }, {
-          onConflict: 'user_id,product_id'
-        });
-
-      if (error) throw error;
+      await supabase.from('cart_items').upsert({
+        user_id: user.id,
+        product_id: item.id,
+        product_name: item.name,
+        product_image: item.image,
+        unit_price: item.price,
+        quantity: item.quantity
+      }, { onConflict: 'user_id,product_id' });
     } catch (error) {
-      console.error('Error adding to cart:', error);
+      console.error('Error syncing cart item:', error);
     }
-  };
+  }, [user]);
 
   // Add item to cart or increase quantity if already exists
-  const addToCart = async (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
+  const addToCart = useCallback((item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
     const quantity = item.quantity || 1;
     
     setCartItems(prev => {
       const existingItem = prev.find(cartItem => cartItem.id === item.id);
+      let newItems: CartItem[];
+      
       if (existingItem) {
-        return prev.map(cartItem =>
+        newItems = prev.map(cartItem =>
           cartItem.id === item.id
             ? { ...cartItem, quantity: cartItem.quantity + quantity }
             : cartItem
         );
+      } else {
+        newItems = [...prev, { 
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          quantity
+        }];
       }
-      return [...prev, { 
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        image: item.image,
-        quantity
-      }];
-    });
 
-    // Sync with database if logged in
-    if (user) {
-      const existingItem = cartItems.find(cartItem => cartItem.id === item.id);
-      const newQuantity = existingItem ? existingItem.quantity + quantity : quantity;
-      
-      await addToDatabase({
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        image: item.image,
-        quantity: newQuantity
-      });
-    }
-  };
+      // Sync with database if logged in
+      if (user) {
+        const updatedItem = newItems.find(i => i.id === item.id);
+        if (updatedItem) {
+          syncToDatabase(updatedItem);
+        }
+      } else {
+        localStorage.setItem('cart', JSON.stringify(newItems));
+      }
+
+      return newItems;
+    });
+  }, [user, syncToDatabase]);
 
   // Remove item completely from cart
-  const removeFromCart = async (productId: string) => {
-    setCartItems(prev => prev.filter(item => item.id !== productId));
+  const removeFromCart = useCallback(async (productId: string) => {
+    setCartItems(prev => {
+      const newItems = prev.filter(item => item.id !== productId);
+      if (!user) {
+        localStorage.setItem('cart', JSON.stringify(newItems));
+      }
+      return newItems;
+    });
 
     if (user) {
       try {
@@ -199,20 +206,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error removing from cart:', error);
       }
     }
-  };
+  }, [user]);
 
   // Update item quantity in cart
-  const updateQuantity = async (productId: string, quantity: number) => {
+  const updateQuantity = useCallback(async (productId: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
     }
     
-    setCartItems(prev =>
-      prev.map(item =>
+    setCartItems(prev => {
+      const newItems = prev.map(item =>
         item.id === productId ? { ...item, quantity } : item
-      )
-    );
+      );
+      if (!user) {
+        localStorage.setItem('cart', JSON.stringify(newItems));
+      }
+      return newItems;
+    });
 
     if (user) {
       try {
@@ -225,11 +236,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error updating quantity:', error);
       }
     }
-  };
+  }, [user, removeFromCart]);
 
   // Clear all items from cart
-  const clearCart = async () => {
+  const clearCart = useCallback(async () => {
     setCartItems([]);
+    localStorage.removeItem('cart');
 
     if (user) {
       try {
@@ -240,20 +252,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Error clearing cart:', error);
       }
-    } else {
-      localStorage.removeItem('cart');
     }
-  };
+  }, [user]);
 
   // Get total number of items in cart
-  const getTotalItems = () => {
+  const getTotalItems = useCallback(() => {
     return cartItems.reduce((total, item) => total + item.quantity, 0);
-  };
+  }, [cartItems]);
 
   // Get total price of all items in cart
-  const getTotalPrice = () => {
+  const getTotalPrice = useCallback(() => {
     return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
+  }, [cartItems]);
 
   return (
     <CartContext.Provider value={{
