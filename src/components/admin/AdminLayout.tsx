@@ -19,7 +19,8 @@ import {
   Star,
   Tag,
   AlertTriangle,
-  TrendingUp
+  TrendingUp,
+  Truck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -47,6 +48,7 @@ const AdminLayout: React.FC = () => {
     { path: '/admin/inventory', icon: AlertTriangle, label: 'Inventory Alerts' },
     { path: '/admin/customers', icon: Users, label: 'Customers' },
     { path: '/admin/users', icon: UserCog, label: 'User Management' },
+    { path: '/admin/suppliers', icon: Truck, label: 'Suppliers' },
     { path: '/admin/coupons', icon: Tag, label: 'Coupons' },
     { path: '/admin/blog-posts', icon: FileText, label: 'Blog Posts' },
     { path: '/admin/reviews', icon: Star, label: 'Reviews' },

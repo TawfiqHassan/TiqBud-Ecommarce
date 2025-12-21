@@ -42,6 +42,7 @@ import { Plus, Pencil, Trash2, Search, Package, Upload, Download, FileSpreadshee
 import { useCategories } from '@/hooks/useProducts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { ProductUrlScraper } from '@/components/admin/ProductUrlScraper';
 
 interface Product {
   id: string;
@@ -695,6 +696,9 @@ const AdminProducts: React.FC = () => {
                 Add Product
               </Button>
             </DialogTrigger>
+
+          {/* Import from URL */}
+          <ProductUrlScraper categories={categories || []} />
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
