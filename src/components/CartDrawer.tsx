@@ -76,7 +76,6 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
                       <h4 className="font-semibold text-foreground truncate text-sm">
                         {item.name}
                       </h4>
-                      <p className="text-xs text-muted-foreground">{item.category}</p>
                       <p className="text-base font-bold text-brand-gold">
                         ৳{item.price.toLocaleString()}
                       </p>
