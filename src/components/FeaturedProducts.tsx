@@ -11,12 +11,12 @@ const FeaturedProducts = () => {
   const { addToCart } = useCart();
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  // Sample featured products data
+  // Sample featured products data with BDT pricing
   const featuredProducts: Product[] = [
     {
       id: '1',
       name: 'TiqBud Pro Mechanical Keyboard',
-      price: 149.99,
+      price: 12999,
       image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop',
       category: 'Keyboards',
       description: 'Premium mechanical keyboard with RGB lighting and tactile switches',
@@ -27,7 +27,7 @@ const FeaturedProducts = () => {
     {
       id: '2',
       name: 'Precision Gaming Mouse X1',
-      price: 89.99,
+      price: 6999,
       image: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=400&h=300&fit=crop',
       category: 'Mice',
       description: 'High-precision gaming mouse with customizable DPI settings',
@@ -38,7 +38,7 @@ const FeaturedProducts = () => {
     {
       id: '3',
       name: 'UltraSound Pro Headset',
-      price: 199.99,
+      price: 15999,
       image: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=400&h=300&fit=crop',
       category: 'Headsets',
       description: 'Premium gaming headset with 7.1 surround sound and noise cancellation',
@@ -49,7 +49,7 @@ const FeaturedProducts = () => {
     {
       id: '4',
       name: 'Wireless Controller Pro',
-      price: 79.99,
+      price: 5499,
       image: 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=400&h=300&fit=crop',
       category: 'Gamepads',
       description: 'Wireless gaming controller with haptic feedback and long battery life',
@@ -60,7 +60,7 @@ const FeaturedProducts = () => {
     {
       id: '5',
       name: 'SoundWave Desktop Speakers',
-      price: 129.99,
+      price: 9999,
       image: 'https://images.unsplash.com/photo-1473091534298-04dcbce3278c?w=400&h=300&fit=crop',
       category: 'Speakers',
       description: 'High-quality desktop speakers with deep bass and crystal clear highs',
@@ -70,12 +70,12 @@ const FeaturedProducts = () => {
     },
     {
       id: '6',
-      name: 'Professional Workstation Setup',
-      price: 299.99,
-      image: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=400&h=300&fit=crop',
-      category: 'Accessories',
-      description: 'Complete workstation setup with monitor stand and cable management',
-      inStock: false,
+      name: '20000mAh Power Bank Pro',
+      price: 3999,
+      image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
+      category: 'Mobile',
+      description: '65W fast charging power bank with LED display',
+      inStock: true,
       rating: 4.8,
       reviews: 89
     }
@@ -103,24 +103,24 @@ const FeaturedProducts = () => {
         key={i}
         className={`w-4 h-4 ${
           i < Math.floor(rating)
-            ? 'fill-yellow-400 text-yellow-400'
+            ? 'fill-brand-gold text-brand-gold'
             : i < rating
-            ? 'fill-yellow-400/50 text-yellow-400'
-            : 'text-slate-600'
+            ? 'fill-brand-gold/50 text-brand-gold'
+            : 'text-muted-foreground'
         }`}
       />
     ));
   };
 
   return (
-    <section className="py-20 bg-slate-800/30">
+    <section className="py-16 bg-secondary/30">
       <div className="container mx-auto px-4">
         {/* Section header */}
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-white mb-4">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-foreground mb-3">
             Featured Products
           </h2>
-          <p className="text-xl text-slate-300 max-w-2xl mx-auto">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Discover our most popular and highest-rated tech accessories
           </p>
         </div>
@@ -130,7 +130,7 @@ const FeaturedProducts = () => {
           {featuredProducts.map((product) => (
             <Card 
               key={product.id}
-              className="group bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-all duration-300 hover:shadow-2xl overflow-hidden"
+              className="group bg-card border-border hover:border-brand-gold/50 transition-all duration-300 hover:shadow-xl overflow-hidden"
             >
               <div className="relative">
                 {/* Product image */}
@@ -144,7 +144,7 @@ const FeaturedProducts = () => {
 
                 {/* Product badges */}
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
-                  <Badge className="bg-blue-500 hover:bg-blue-600">
+                  <Badge className="bg-brand-gold text-brand-dark hover:bg-brand-gold-dark">
                     {product.category}
                   </Badge>
                   {!product.inStock && (
@@ -166,7 +166,7 @@ const FeaturedProducts = () => {
                       className={`w-4 h-4 ${
                         favorites.includes(product.id) 
                           ? 'fill-red-500 text-red-500' 
-                          : 'text-slate-600'
+                          : 'text-muted-foreground'
                       }`} 
                     />
                   </Button>
@@ -182,12 +182,12 @@ const FeaturedProducts = () => {
 
               <CardContent className="p-6">
                 {/* Product info */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-blue-400 transition-colors">
+                    <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-brand-gold transition-colors">
                       {product.name}
                     </h3>
-                    <p className="text-slate-300 text-sm line-clamp-2">
+                    <p className="text-muted-foreground text-sm line-clamp-2">
                       {product.description}
                     </p>
                   </div>
@@ -197,23 +197,23 @@ const FeaturedProducts = () => {
                     <div className="flex items-center">
                       {renderStars(product.rating)}
                     </div>
-                    <span className="text-sm text-slate-400">
+                    <span className="text-sm text-muted-foreground">
                       {product.rating} ({product.reviews} reviews)
                     </span>
                   </div>
 
-                  {/* Price and add to cart */}
-                  <div className="flex items-center justify-between pt-4">
-                    <div className="text-2xl font-bold text-white">
-                      ${product.price}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="text-xl font-bold text-foreground">
+                      ৳{product.price.toLocaleString()}
                     </div>
                     <Button
                       onClick={() => handleAddToCart(product)}
                       disabled={!product.inStock}
-                      className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      size="sm"
+                      className="bg-brand-gold hover:bg-brand-gold-dark text-brand-dark disabled:opacity-50"
                     >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      {product.inStock ? 'Add to Cart' : 'Out of Stock'}
+                      <ShoppingCart className="w-4 h-4 mr-1" />
+                      {product.inStock ? 'Add' : 'Out'}
                     </Button>
                   </div>
                 </div>
@@ -222,14 +222,14 @@ const FeaturedProducts = () => {
           ))}
         </div>
 
-        {/* View all products button */}
-        <div className="text-center mt-12">
+        <div className="text-center mt-10">
           <Button 
             size="lg"
             variant="outline"
-            className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white px-8 py-3"
+            className="border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-brand-dark px-8"
           >
             View All Products
+          </Button>
           </Button>
         </div>
       </div>
