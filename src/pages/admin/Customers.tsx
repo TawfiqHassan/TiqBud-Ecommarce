@@ -74,9 +74,18 @@ const AdminCustomers: React.FC = () => {
       const { data: profiles, error } = await query;
       if (error) throw error;
 
+      // Exclude admins from the customer list
+      const { data: roles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+      if (rolesError) throw rolesError;
+
+      const adminIds = new Set((roles || []).filter((r) => r.role === 'admin').map((r) => r.user_id));
+      const customerProfiles = (profiles || []).filter((p) => !adminIds.has(p.user_id));
+
       // Get order stats for each customer
       const customersWithStats = await Promise.all(
-        (profiles || []).map(async (profile) => {
+        customerProfiles.map(async (profile) => {
           const { data: orders } = await supabase
             .from('orders')
             .select('total')
@@ -85,13 +94,13 @@ const AdminCustomers: React.FC = () => {
           return {
             ...profile,
             orders_count: orders?.length || 0,
-            total_spent: orders?.reduce((sum, o) => sum + Number(o.total), 0) || 0
+            total_spent: orders?.reduce((sum, o) => sum + Number(o.total), 0) || 0,
           };
         })
       );
 
       return customersWithStats as Customer[];
-    }
+    },
   });
 
   const updateMutation = useMutation({
