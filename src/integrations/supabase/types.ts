@@ -651,6 +651,63 @@ export type Database = {
         }
         Relationships: []
       }
+      suppliers: {
+        Row: {
+          address: string | null
+          api_endpoint: string | null
+          api_headers: Json | null
+          api_key: string | null
+          auth_type: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          last_sync_at: string | null
+          name: string
+          notes: string | null
+          product_mapping: Json | null
+          status: string
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          api_endpoint?: string | null
+          api_headers?: Json | null
+          api_key?: string | null
+          auth_type?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          name: string
+          notes?: string | null
+          product_mapping?: Json | null
+          status?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          api_endpoint?: string | null
+          api_headers?: Json | null
+          api_key?: string | null
+          auth_type?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          last_sync_at?: string | null
+          name?: string
+          notes?: string | null
+          product_mapping?: Json | null
+          status?: string
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

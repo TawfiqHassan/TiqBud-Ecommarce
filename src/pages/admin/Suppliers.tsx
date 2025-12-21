@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, ExternalLink, RefreshCw, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ExternalLink, RefreshCw, Building2, Download, Zap, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Supplier {
@@ -40,9 +40,13 @@ interface Supplier {
   website: string | null;
   address: string | null;
   api_endpoint: string | null;
-  api_key_name: string | null;
-  status: 'active' | 'inactive' | 'pending';
+  api_key: string | null;
+  api_headers: Record<string, string> | null;
+  auth_type: string;
+  product_mapping: Record<string, string> | null;
+  status: string;
   notes: string | null;
+  last_sync_at: string | null;
   created_at: string;
 }
 
@@ -50,6 +54,9 @@ const Suppliers = () => {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testingApi, setTestingApi] = useState<string | null>(null);
+  const [fetchingProducts, setFetchingProducts] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     contact_email: '',
@@ -57,59 +64,116 @@ const Suppliers = () => {
     website: '',
     address: '',
     api_endpoint: '',
-    api_key_name: '',
-    status: 'active' as 'active' | 'inactive' | 'pending',
+    api_key: '',
+    auth_type: 'bearer',
+    api_headers: '',
+    status: 'active',
     notes: '',
   });
 
-  // Note: This uses a 'suppliers' table that would need to be created
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ['suppliers'],
     queryFn: async () => {
-      // Simulated data since suppliers table doesn't exist yet
-      // In production, this would fetch from supabase
-      const mockSuppliers: Supplier[] = [
-        {
-          id: '1',
-          name: 'TechParts Global',
-          contact_email: 'supply@techparts.com',
-          contact_phone: '+1 555-0123',
-          website: 'https://techparts.com',
-          address: 'New York, USA',
-          api_endpoint: 'https://api.techparts.com/v1',
-          api_key_name: 'TECHPARTS_API_KEY',
-          status: 'active',
-          notes: 'Primary supplier for PC components',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          name: 'Mobile Gadgets Inc',
-          contact_email: 'orders@mobilegadgets.com',
-          contact_phone: '+1 555-0456',
-          website: 'https://mobilegadgets.com',
-          address: 'Los Angeles, USA',
-          api_endpoint: null,
-          api_key_name: null,
-          status: 'active',
-          notes: 'Mobile accessories supplier',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          name: 'Asian Tech Exports',
-          contact_email: 'exports@asiantech.cn',
-          contact_phone: '+86 123-4567',
-          website: 'https://asiantech.cn',
-          address: 'Shenzhen, China',
-          api_endpoint: 'https://api.asiantech.cn/products',
-          api_key_name: 'ASIANTECH_KEY',
-          status: 'pending',
-          notes: 'New supplier - pending verification',
-          created_at: new Date().toISOString(),
-        },
-      ];
-      return mockSuppliers;
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Supplier[];
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      let apiHeaders = {};
+      if (data.api_headers) {
+        try {
+          apiHeaders = JSON.parse(data.api_headers);
+        } catch (e) {
+          throw new Error('Invalid JSON in custom headers');
+        }
+      }
+
+      const { error } = await supabase.from('suppliers').insert({
+        name: data.name,
+        contact_email: data.contact_email || null,
+        contact_phone: data.contact_phone || null,
+        website: data.website || null,
+        address: data.address || null,
+        api_endpoint: data.api_endpoint || null,
+        api_key: data.api_key || null,
+        auth_type: data.auth_type,
+        api_headers: apiHeaders,
+        status: data.status,
+        notes: data.notes || null,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast.success('Supplier added successfully');
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add supplier');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      let apiHeaders = {};
+      if (data.api_headers) {
+        try {
+          apiHeaders = JSON.parse(data.api_headers);
+        } catch (e) {
+          throw new Error('Invalid JSON in custom headers');
+        }
+      }
+
+      const { error } = await supabase
+        .from('suppliers')
+        .update({
+          name: data.name,
+          contact_email: data.contact_email || null,
+          contact_phone: data.contact_phone || null,
+          website: data.website || null,
+          address: data.address || null,
+          api_endpoint: data.api_endpoint || null,
+          api_key: data.api_key || null,
+          auth_type: data.auth_type,
+          api_headers: apiHeaders,
+          status: data.status,
+          notes: data.notes || null,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast.success('Supplier updated successfully');
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update supplier');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('suppliers').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+      toast.success('Supplier deleted successfully');
+    },
+    onError: () => {
+      toast.error('Failed to delete supplier');
     },
   });
 
@@ -119,13 +183,64 @@ const Suppliers = () => {
       return;
     }
 
-    toast.loading('Testing API connection...');
-    
-    // Simulate API test
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast.dismiss();
-    toast.success(`Successfully connected to ${supplier.name} API`);
+    setTestingApi(supplier.id);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('supplier-api', {
+        body: {
+          action: 'test',
+          endpoint: supplier.api_endpoint,
+          apiKey: supplier.api_key,
+          authType: supplier.auth_type,
+          headers: supplier.api_headers,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success(`Connected to ${supplier.name} API successfully!`);
+        console.log('API Response Preview:', data.preview);
+      } else {
+        toast.error(data.error || 'Connection failed');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to test connection');
+    } finally {
+      setTestingApi(null);
+    }
+  };
+
+  const fetchProductsFromApi = async (supplier: Supplier) => {
+    if (!supplier.api_endpoint) {
+      toast.error('No API endpoint configured');
+      return;
+    }
+
+    setFetchingProducts(supplier.id);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('supplier-api', {
+        body: {
+          action: 'fetch_products',
+          supplierId: supplier.id,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast.success(`Fetched ${data.total} products from ${data.supplier}`);
+        console.log('Products:', data.products);
+        // Here you could open a dialog to preview/import the products
+      } else {
+        toast.error(data.error || 'Failed to fetch products');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to fetch products');
+    } finally {
+      setFetchingProducts(null);
+    }
   };
 
   const handleSubmit = () => {
@@ -135,13 +250,10 @@ const Suppliers = () => {
     }
 
     if (editingSupplier) {
-      toast.success('Supplier updated successfully');
+      updateMutation.mutate({ id: editingSupplier.id, data: formData });
     } else {
-      toast.success('Supplier added successfully');
+      createMutation.mutate(formData);
     }
-
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const resetForm = () => {
@@ -152,11 +264,14 @@ const Suppliers = () => {
       website: '',
       address: '',
       api_endpoint: '',
-      api_key_name: '',
+      api_key: '',
+      auth_type: 'bearer',
+      api_headers: '',
       status: 'active',
       notes: '',
     });
     setEditingSupplier(null);
+    setShowApiKey(false);
   };
 
   const openEditDialog = (supplier: Supplier) => {
@@ -168,7 +283,9 @@ const Suppliers = () => {
       website: supplier.website || '',
       address: supplier.address || '',
       api_endpoint: supplier.api_endpoint || '',
-      api_key_name: supplier.api_key_name || '',
+      api_key: supplier.api_key || '',
+      auth_type: supplier.auth_type || 'bearer',
+      api_headers: supplier.api_headers ? JSON.stringify(supplier.api_headers, null, 2) : '',
       status: supplier.status,
       notes: supplier.notes || '',
     });
@@ -193,7 +310,7 @@ const Suppliers = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Suppliers</h1>
-          <p className="text-muted-foreground">Manage supplier information and API integrations</p>
+          <p className="text-muted-foreground">Manage supplier information and connect external APIs</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
@@ -205,7 +322,7 @@ const Suppliers = () => {
               Add Supplier
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl bg-card">
+          <DialogContent className="max-w-2xl bg-card max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
             </DialogHeader>
@@ -249,7 +366,7 @@ const Suppliers = () => {
               </div>
               <div>
                 <Label htmlFor="status">Status</Label>
-                <Select value={formData.status} onValueChange={(value: 'active' | 'inactive' | 'pending') => setFormData({ ...formData, status: value })}>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -271,30 +388,83 @@ const Suppliers = () => {
               </div>
               
               <div className="col-span-2 border-t border-border pt-4 mt-2">
-                <h4 className="font-medium text-foreground mb-3">API Integration (Optional)</h4>
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="w-5 h-5 text-brand-gold" />
+                  <h4 className="font-medium text-foreground">External API Integration</h4>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Connect to your supplier's API to automatically fetch products, prices, and inventory.
+                </p>
               </div>
               
-              <div>
-                <Label htmlFor="api_endpoint">API Endpoint</Label>
+              <div className="col-span-2">
+                <Label htmlFor="api_endpoint">API Endpoint URL</Label>
                 <Input
                   id="api_endpoint"
                   value={formData.api_endpoint}
                   onChange={(e) => setFormData({ ...formData, api_endpoint: e.target.value })}
-                  placeholder="https://api.supplier.com/v1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="api_key_name">API Key Secret Name</Label>
-                <Input
-                  id="api_key_name"
-                  value={formData.api_key_name}
-                  onChange={(e) => setFormData({ ...formData, api_key_name: e.target.value })}
-                  placeholder="SUPPLIER_API_KEY"
+                  placeholder="https://api.supplier.com/v1/products"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Store actual API key in Secrets, reference by name here
+                  The URL to fetch products from (usually ends with /products or /items)
                 </p>
               </div>
+              
+              <div>
+                <Label htmlFor="auth_type">Authentication Type</Label>
+                <Select value={formData.auth_type} onValueChange={(value) => setFormData({ ...formData, auth_type: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bearer">Bearer Token</SelectItem>
+                    <SelectItem value="api_key">API Key (X-API-Key header)</SelectItem>
+                    <SelectItem value="basic">Basic Auth</SelectItem>
+                    <SelectItem value="custom">Custom Headers</SelectItem>
+                    <SelectItem value="none">No Authentication</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="api_key">API Key / Token</Label>
+                <div className="relative">
+                  <Input
+                    id="api_key"
+                    type={showApiKey ? 'text' : 'password'}
+                    value={formData.api_key}
+                    onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                    placeholder="Your API key or token"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {formData.auth_type === 'custom' && (
+                <div className="col-span-2">
+                  <Label htmlFor="api_headers">Custom Headers (JSON)</Label>
+                  <Textarea
+                    id="api_headers"
+                    value={formData.api_headers}
+                    onChange={(e) => setFormData({ ...formData, api_headers: e.target.value })}
+                    placeholder='{"Authorization": "Custom abc123", "X-Custom-Header": "value"}'
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter custom headers as JSON object
+                  </p>
+                </div>
+              )}
+
               <div className="col-span-2">
                 <Label htmlFor="notes">Notes</Label>
                 <Textarea
@@ -308,8 +478,12 @@ const Suppliers = () => {
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleSubmit} className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark">
-                {editingSupplier ? 'Update' : 'Add'} Supplier
+              <Button 
+                onClick={handleSubmit} 
+                className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                disabled={createMutation.isPending || updateMutation.isPending}
+              >
+                {createMutation.isPending || updateMutation.isPending ? 'Saving...' : (editingSupplier ? 'Update' : 'Add')} Supplier
               </Button>
             </div>
           </DialogContent>
@@ -416,20 +590,41 @@ const Suppliers = () => {
                     </TableCell>
                     <TableCell>
                       {supplier.api_endpoint ? (
-                        <div className="space-y-1">
-                          <Badge variant="secondary" className="text-xs">API Enabled</Badge>
+                        <div className="space-y-2">
+                          <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                            <Zap className="w-3 h-3 mr-1" />
+                            API Connected
+                          </Badge>
                           <p className="text-xs text-muted-foreground truncate max-w-[200px]">
                             {supplier.api_endpoint}
                           </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => testApiConnection(supplier)}
-                            className="h-7 text-xs gap-1"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                            Test Connection
-                          </Button>
+                          {supplier.last_sync_at && (
+                            <p className="text-xs text-muted-foreground">
+                              Last sync: {new Date(supplier.last_sync_at).toLocaleDateString()}
+                            </p>
+                          )}
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => testApiConnection(supplier)}
+                              disabled={testingApi === supplier.id}
+                              className="h-7 text-xs gap-1"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${testingApi === supplier.id ? 'animate-spin' : ''}`} />
+                              Test
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => fetchProductsFromApi(supplier)}
+                              disabled={fetchingProducts === supplier.id}
+                              className="h-7 text-xs gap-1"
+                            >
+                              <Download className={`w-3 h-3 ${fetchingProducts === supplier.id ? 'animate-bounce' : ''}`} />
+                              Fetch
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">Not configured</span>
@@ -449,7 +644,11 @@ const Suppliers = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => toast.success('Supplier deleted')}
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this supplier?')) {
+                              deleteMutation.mutate(supplier.id);
+                            }
+                          }}
                           className="h-8 w-8 text-destructive hover:text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -461,18 +660,6 @@ const Suppliers = () => {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-
-      {/* Info Card */}
-      <Card className="bg-blue-500/5 border-blue-500/20">
-        <CardContent className="p-4">
-          <h4 className="font-medium text-foreground mb-2">About Supplier API Integration</h4>
-          <p className="text-sm text-muted-foreground">
-            You can integrate with supplier APIs to automatically sync product inventory, 
-            pricing, and availability. Store your API keys securely in the Secrets section 
-            and reference them here by name. Test connections before going live.
-          </p>
         </CardContent>
       </Card>
     </div>
