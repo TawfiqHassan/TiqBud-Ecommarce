@@ -230,7 +230,6 @@ const FeaturedProducts = () => {
           >
             View All Products
           </Button>
-          </Button>
         </div>
       </div>
     </section>
