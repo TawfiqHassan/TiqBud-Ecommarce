@@ -8,9 +8,19 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   isApproved: boolean;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, metadata?: SignupMetadata) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+}
+
+interface SignupMetadata {
+  fullName: string;
+  phone: string;
+  city: string;
+  username: string;
+  securityQuestion: string;
+  securityAnswer: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -96,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, metadata?: SignupMetadata) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -105,7 +115,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       options: {
         emailRedirectTo: redirectUrl,
         data: {
-          full_name: fullName
+          full_name: metadata?.fullName,
+          phone: metadata?.phone,
+          city: metadata?.city,
+          username: metadata?.username,
+          security_question: metadata?.securityQuestion,
+          security_answer: metadata?.securityAnswer
         }
       }
     });
@@ -128,6 +143,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsApproved(false);
   };
 
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?mode=reset`
+    });
+    return { error: error as Error | null };
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -137,7 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isApproved,
       signUp,
       signIn,
-      signOut
+      signOut,
+      resetPassword
     }}>
       {children}
     </AuthContext.Provider>
