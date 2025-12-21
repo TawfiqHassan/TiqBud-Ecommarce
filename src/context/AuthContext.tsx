@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAdmin: boolean;
+  isApproved: boolean;
   signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -19,24 +20,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
 
-  const checkAdminRole = async (userId: string) => {
+  const checkUserStatus = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // Check admin role
+      const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .eq('role', 'admin')
         .maybeSingle();
       
-      if (error) {
-        console.error('Error checking admin role:', error);
-        return false;
-      }
-      return !!data;
+      // Check approval status
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('is_approved')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      return {
+        isAdmin: !!roleData,
+        isApproved: profileData?.is_approved ?? false
+      };
     } catch (error) {
-      console.error('Error checking admin role:', error);
-      return false;
+      console.error('Error checking user status:', error);
+      return { isAdmin: false, isApproved: false };
     }
   };
 
@@ -44,37 +53,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        // Only synchronous state updates here
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(true);
 
-        // Defer admin check with setTimeout to prevent deadlock
         if (session?.user) {
           setTimeout(() => {
-            checkAdminRole(session.user.id)
-              .then((admin) => setIsAdmin(admin))
+            checkUserStatus(session.user.id)
+              .then(({ isAdmin, isApproved }) => {
+                setIsAdmin(isAdmin);
+                setIsApproved(isApproved);
+              })
               .finally(() => setIsLoading(false));
           }, 0);
         } else {
           setIsAdmin(false);
+          setIsApproved(false);
           setIsLoading(false);
         }
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(true);
 
       if (session?.user) {
-        checkAdminRole(session.user.id)
-          .then((admin) => setIsAdmin(admin))
+        checkUserStatus(session.user.id)
+          .then(({ isAdmin, isApproved }) => {
+            setIsAdmin(isAdmin);
+            setIsApproved(isApproved);
+          })
           .finally(() => setIsLoading(false));
       } else {
         setIsAdmin(false);
+        setIsApproved(false);
         setIsLoading(false);
       }
     });
@@ -111,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     await supabase.auth.signOut();
     setIsAdmin(false);
+    setIsApproved(false);
   };
 
   return (
@@ -119,6 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       session,
       isLoading,
       isAdmin,
+      isApproved,
       signUp,
       signIn,
       signOut

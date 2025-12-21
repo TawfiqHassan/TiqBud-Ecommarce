@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCart } from '@/context/CartContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 import CartDrawer from './CartDrawer';
 import logo from '@/assets/logo.png';
 
@@ -23,9 +24,12 @@ const Header = () => {
   const [showResults, setShowResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const { getTotalItems } = useCart();
+  const { data: siteSettings } = useSiteSettings();
   const location = useLocation();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
+  
+  const announcement = siteSettings?.announcement_bar;
 
   // Navigation menu items
   const menuItems = [
@@ -94,9 +98,11 @@ const Header = () => {
   return (
     <>
       {/* Top announcement bar */}
-      <div className="bg-brand-gold text-brand-dark text-center py-2 text-sm font-medium">
-        🎉 Free Delivery in Dhaka on orders over ৳5,000! | Call: +880 1XXX-XXXXXX
-      </div>
+      {announcement?.is_visible !== false && (
+        <div className="bg-brand-gold text-brand-dark text-center py-2 text-sm font-medium">
+          🎉 {announcement?.message || 'Free Delivery in Dhaka on orders over ৳5,000!'} | Call: {announcement?.phone || '+880 1XXX-XXXXXX'}
+        </div>
+      )}
 
       <header className="bg-card/95 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3">

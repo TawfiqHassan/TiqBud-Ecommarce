@@ -28,7 +28,7 @@ const signupSchema = z.object({
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, signIn, signUp, isLoading } = useAuth();
+  const { user, isAdmin, isApproved, signIn, signUp, isLoading } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,9 +46,49 @@ const Auth: React.FC = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
+      if (!isApproved && !isAdmin) {
+        // User is logged in but not approved - show pending message
+        return;
+      }
       navigate(isAdmin ? '/admin' : '/');
     }
-  }, [user, isAdmin, isLoading, navigate]);
+  }, [user, isAdmin, isApproved, isLoading, navigate]);
+
+  // Show pending approval message
+  if (user && !isApproved && !isAdmin && !isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-brand-dark via-background to-brand-slate p-4">
+        <Card className="w-full max-w-md border-amber-500/50 bg-card/80 backdrop-blur-sm">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <CardTitle className="text-2xl font-bold text-amber-500">Account Pending</CardTitle>
+            <CardDescription className="text-base">
+              Your account is awaiting admin approval. You'll be notified once approved.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Logged in as: <span className="font-medium">{user.email}</span>
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                const { signOut } = await import('@/integrations/supabase/client').then(m => m.supabase.auth);
+                await signOut();
+                window.location.reload();
+              }}
+            >
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
