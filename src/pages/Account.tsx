@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
 import Header from '@/components/Header';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +20,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Package, MapPin, Heart, User, Plus, Trash2, Edit } from 'lucide-react';
+import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save } from 'lucide-react';
+import { CartProvider } from '@/context/CartContext';
 
 interface Order {
   id: string;
@@ -53,11 +55,29 @@ interface WishlistItem {
   };
 }
 
-const Account: React.FC = () => {
-  const { user, signOut } = useAuth();
+interface Profile {
+  id: string;
+  user_id: string;
+  email: string | null;
+  full_name: string | null;
+  phone: string | null;
+  city: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+const AccountContent: React.FC = () => {
+  const { user, signOut, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [isAddressDialogOpen, setIsAddressDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  
   const [addressForm, setAddressForm] = useState({
     label: 'Home',
     full_name: '',
@@ -67,6 +87,13 @@ const Account: React.FC = () => {
     district: '',
     postal_code: '',
     is_default: false
+  });
+  
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    phone: '',
+    city: '',
+    username: ''
   });
 
   // Fetch orders
@@ -125,7 +152,7 @@ const Account: React.FC = () => {
   });
 
   // Fetch profile
-  const { data: profile } = useQuery({
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ['my-profile', user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -135,10 +162,94 @@ const Account: React.FC = () => {
         .eq('user_id', user.id)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return data as Profile | null;
     },
     enabled: !!user
   });
+
+  // Update profile form when profile loads
+  React.useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        full_name: profile.full_name || '',
+        phone: profile.phone || '',
+        city: profile.city || '',
+        username: profile.username || ''
+      });
+    }
+  }, [profile]);
+
+  // Profile update mutation
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: typeof profileForm) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          full_name: data.full_name,
+          phone: data.phone || null,
+          city: data.city || null,
+          username: data.username || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user?.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-profile'] });
+      toast.success('Profile updated successfully');
+      setIsEditingProfile(false);
+    },
+    onError: (error: Error) => toast.error(error.message)
+  });
+
+  // Avatar upload handler
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be less than 2MB');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user.id}/avatar.${fileExt}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      // Update profile with avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      queryClient.invalidateQueries({ queryKey: ['my-profile'] });
+      toast.success('Profile picture updated');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to upload image');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   // Address mutations
   const saveAddressMutation = useMutation({
@@ -244,6 +355,11 @@ const Account: React.FC = () => {
     saveAddressMutation.mutate(editingAddress ? { ...addressForm, id: editingAddress.id } : addressForm);
   };
 
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProfileMutation.mutate(profileForm);
+  };
+
   const formatPrice = (price: number) => `৳${price.toLocaleString()}`;
   const formatDate = (date: string) => new Date(date).toLocaleDateString();
 
@@ -253,6 +369,11 @@ const Account: React.FC = () => {
     shipped: 'bg-purple-500/20 text-purple-500',
     delivered: 'bg-green-500/20 text-green-500',
     cancelled: 'bg-red-500/20 text-red-500'
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   if (!user) {
@@ -277,18 +398,65 @@ const Account: React.FC = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">My Account</h1>
-            <p className="text-muted-foreground">{user.email}</p>
+        {/* Profile Header */}
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8 p-6 bg-card rounded-lg border border-border">
+          <div className="relative">
+            <Avatar className="h-24 w-24">
+              <AvatarImage src={profile?.avatar_url || ''} />
+              <AvatarFallback className="bg-brand-gold text-brand-dark text-2xl">
+                {getInitials(profile?.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute bottom-0 right-0 p-2 bg-brand-gold rounded-full text-brand-dark hover:bg-brand-gold/90 transition-colors"
+            >
+              {isUploadingAvatar ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand-dark border-t-transparent" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
           </div>
+          
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">{profile?.full_name || 'Welcome!'}</h1>
+            <p className="text-muted-foreground">{user.email}</p>
+            {profile?.username && (
+              <p className="text-sm text-muted-foreground">@{profile.username}</p>
+            )}
+            <div className="flex gap-2 mt-3">
+              {isAdmin && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('/admin')}
+                >
+                  Admin Dashboard
+                </Button>
+              )}
+            </div>
+          </div>
+          
           <Button variant="outline" onClick={signOut}>
             Sign Out
           </Button>
         </div>
 
-        <Tabs defaultValue="orders" className="space-y-6">
+        <Tabs defaultValue="profile" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 max-w-lg">
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Profile
+            </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Orders
@@ -301,11 +469,123 @@ const Account: React.FC = () => {
               <Heart className="h-4 w-4" />
               Wishlist
             </TabsTrigger>
-            <TabsTrigger value="profile" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Profile
-            </TabsTrigger>
           </TabsList>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Profile Information</CardTitle>
+                  <CardDescription>Manage your personal details</CardDescription>
+                </div>
+                {!isEditingProfile ? (
+                  <Button variant="outline" onClick={() => setIsEditingProfile(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                ) : null}
+              </CardHeader>
+              <CardContent>
+                {profileLoading ? (
+                  <div className="text-center py-8">Loading...</div>
+                ) : isEditingProfile ? (
+                  <form onSubmit={handleSaveProfile} className="space-y-4 max-w-md">
+                    <div>
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <Input
+                        id="fullName"
+                        value={profileForm.full_name}
+                        onChange={(e) => setProfileForm({ ...profileForm, full_name: e.target.value })}
+                        placeholder="Your full name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        value={profileForm.username}
+                        onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
+                        placeholder="@username"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        value={profileForm.phone}
+                        onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                        placeholder="+880 1XXX-XXXXXX"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={profileForm.city}
+                        onChange={(e) => setProfileForm({ ...profileForm, city: e.target.value })}
+                        placeholder="Dhaka"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Email (cannot be changed)</Label>
+                      <Input value={user.email || ''} disabled className="bg-muted" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="submit" 
+                        className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                        disabled={updateProfileMutation.isPending}
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setIsEditingProfile(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="grid gap-4 max-w-md">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Full Name</Label>
+                        <p className="font-medium">{profile?.full_name || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Username</Label>
+                        <p className="font-medium">{profile?.username ? `@${profile.username}` : 'Not set'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Email</Label>
+                        <p className="font-medium">{user.email}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Phone</Label>
+                        <p className="font-medium">{profile?.phone || 'Not set'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">City</Label>
+                        <p className="font-medium">{profile?.city || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Member Since</Label>
+                        <p className="font-medium">{formatDate(profile?.created_at || user.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Orders Tab */}
           <TabsContent value="orders">
@@ -513,35 +793,17 @@ const Account: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Profile Tab */}
-          <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
-                <CardDescription>Your account details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-muted-foreground">Full Name</Label>
-                  <p className="font-medium">{profile?.full_name || 'Not set'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Email</Label>
-                  <p className="font-medium">{user.email}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Member Since</Label>
-                  <p className="font-medium">{formatDate(profile?.created_at || user.created_at)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </main>
       <Footer />
     </div>
   );
 };
+
+const Account: React.FC = () => (
+  <CartProvider>
+    <AccountContent />
+  </CartProvider>
+);
 
 export default Account;
