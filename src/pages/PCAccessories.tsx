@@ -47,40 +47,24 @@ const PCAccessoriesContent = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('featured');
 
-  // Fetch PC category and its subcategories from database
-  const { data: pcCategory } = useQuery({
-    queryKey: ['pc-category'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .or('slug.eq.pc-accessories,slug.eq.pc,name.ilike.%PC%')
-        .single();
-      
-      if (error) return null;
-      return data;
-    }
-  });
-
-  // Fetch subcategories
+  // Fetch subcategories for PC Accessories
   const { data: subcategories = [] } = useQuery({
-    queryKey: ['pc-subcategories', pcCategory?.id],
+    queryKey: ['pc-subcategories'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .eq('parent_category', pcCategory?.name || 'PC Accessories')
+        .eq('parent_category', 'PC Accessories')
         .order('name');
       
       if (error) return [];
       return data;
-    },
-    enabled: !!pcCategory
+    }
   });
 
   // Fetch products from database
   const { data: products = [], isLoading: productsLoading } = useQuery({
-    queryKey: ['pc-products', activeCategory],
+    queryKey: ['pc-products', activeCategory, subcategories],
     queryFn: async () => {
       let query = supabase
         .from('products')
@@ -92,9 +76,9 @@ const PCAccessoriesContent = () => {
 
       if (activeCategory !== 'all') {
         query = query.eq('category_id', activeCategory);
-      } else if (pcCategory) {
-        // Get all products from PC category or its subcategories
-        const categoryIds = [pcCategory.id, ...subcategories.map(s => s.id)];
+      } else if (subcategories.length > 0) {
+        // Get all products from PC subcategories
+        const categoryIds = subcategories.map(s => s.id);
         query = query.in('category_id', categoryIds);
       }
 
@@ -114,7 +98,7 @@ const PCAccessoriesContent = () => {
         originalPrice: p.original_price ? Number(p.original_price) : undefined,
       })) as ProductWithExtras[];
     },
-    enabled: !!pcCategory || subcategories.length > 0 || activeCategory === 'all'
+    enabled: subcategories.length > 0 || activeCategory !== 'all'
   });
 
   // Sort products
@@ -166,10 +150,10 @@ const PCAccessoriesContent = () => {
       <div className="bg-card border-b border-border py-12">
         <div className="container mx-auto px-4">
           <h1 className="text-4xl font-bold text-foreground mb-2">
-            {pcCategory?.name || 'PC Accessories'}
+            PC Accessories
           </h1>
           <p className="text-muted-foreground text-lg">
-            {pcCategory?.description || 'Premium keyboards, mice, headsets, gamepads, and speakers for your setup'}
+            Premium keyboards, mice, headsets, gamepads, and speakers for your setup
           </p>
         </div>
       </div>
