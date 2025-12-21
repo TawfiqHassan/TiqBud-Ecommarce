@@ -19,7 +19,6 @@ import {
   Star,
   Tag,
   AlertTriangle,
-  TrendingUp,
   Truck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,8 +53,7 @@ const AdminLayout: React.FC = () => {
     { path: '/admin/reviews', icon: Star, label: 'Reviews' },
     { path: '/admin/site-content', icon: Layout, label: 'Site Content' },
     { path: '/admin/navbar', icon: Menu, label: 'Navbar' },
-    { path: '/admin/sales-reports', icon: TrendingUp, label: 'Sales Reports' },
-    { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
+    { path: '/admin/analytics', icon: BarChart3, label: 'Analytics & Reports' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];
 

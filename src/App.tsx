@@ -33,7 +33,6 @@ import NavbarSettings from "./pages/admin/NavbarSettings";
 import Account from "./pages/Account";
 import Coupons from "./pages/admin/Coupons";
 import Inventory from "./pages/admin/Inventory";
-import SalesReports from "./pages/admin/SalesReports";
 import Suppliers from "./pages/admin/Suppliers";
 
 const queryClient = new QueryClient();
@@ -74,7 +73,7 @@ const App = () => (
               <Route path="settings" element={<Settings />} />
               <Route path="coupons" element={<Coupons />} />
               <Route path="inventory" element={<Inventory />} />
-              <Route path="sales-reports" element={<SalesReports />} />
+              <Route path="sales-reports" element={<Analytics />} /> {/* Redirect old route */}
               <Route path="suppliers" element={<Suppliers />} />
             </Route>
             
