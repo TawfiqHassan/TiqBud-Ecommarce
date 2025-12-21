@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Star, ShoppingCart, Heart, Eye, Filter, Grid, Keyboard, Mouse, Gamepad2, Headphones, Volume2 } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Eye, Grid, Keyboard, Mouse, Gamepad2, Headphones, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
 import { Link } from 'react-router-dom';
+import ProductFilters from '@/components/ProductFilters';
 
 // Extended product type for this page
 interface ProductWithExtras {
@@ -25,6 +26,14 @@ interface ProductWithExtras {
   rating: number;
   reviews: number;
   originalPrice?: number;
+  brand?: string;
+}
+
+interface FilterState {
+  priceRange: [number, number];
+  brands: string[];
+  inStockOnly: boolean;
+  onSaleOnly: boolean;
 }
 
 // Icon mapping for subcategories
@@ -46,6 +55,12 @@ const PCAccessoriesContent = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('featured');
+  const [filters, setFilters] = useState<FilterState>({
+    priceRange: [0, 100000],
+    brands: [],
+    inStockOnly: false,
+    onSaleOnly: false
+  });
 
   // Fetch subcategories for PC Accessories
   const { data: subcategories = [] } = useQuery({
@@ -96,13 +111,47 @@ const PCAccessoriesContent = () => {
         rating: 4.5,
         reviews: Math.floor(Math.random() * 200) + 50,
         originalPrice: p.original_price ? Number(p.original_price) : undefined,
+        brand: p.brand || undefined,
       })) as ProductWithExtras[];
     },
     enabled: subcategories.length > 0 || activeCategory !== 'all'
   });
 
+  // Get available brands and max price
+  const availableBrands = useMemo(() => {
+    const brands = products.map(p => p.brand).filter((b): b is string => !!b);
+    return [...new Set(brands)].sort();
+  }, [products]);
+
+  const maxPrice = useMemo(() => {
+    return Math.max(...products.map(p => p.price), 100000);
+  }, [products]);
+
+  // Filter and sort products
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      // Price filter
+      if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) {
+        return false;
+      }
+      // Brand filter
+      if (filters.brands.length > 0 && (!product.brand || !filters.brands.includes(product.brand))) {
+        return false;
+      }
+      // In stock filter
+      if (filters.inStockOnly && !product.inStock) {
+        return false;
+      }
+      // On sale filter
+      if (filters.onSaleOnly && (!product.originalPrice || product.originalPrice <= product.price)) {
+        return false;
+      }
+      return true;
+    });
+  }, [products, filters]);
+
   // Sort products
-  const sortedProducts = [...products].sort((a, b) => {
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
     switch (sortBy) {
       case 'price-low': return a.price - b.price;
       case 'price-high': return b.price - a.price;
@@ -160,11 +209,12 @@ const PCAccessoriesContent = () => {
 
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar - Categories */}
-          <aside className="lg:w-64 flex-shrink-0">
-            <div className="bg-card rounded-lg border border-border p-4 sticky top-24">
+          {/* Sidebar - Categories & Filters */}
+          <aside className="lg:w-64 flex-shrink-0 space-y-4">
+            {/* Categories */}
+            <div className="bg-card rounded-lg border border-border p-4">
               <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Filter className="w-4 h-4" />
+                <Grid className="w-4 h-4" />
                 Categories
               </h3>
               <div className="space-y-2">
@@ -198,6 +248,14 @@ const PCAccessoriesContent = () => {
                 })}
               </div>
             </div>
+
+            {/* Filters */}
+            <ProductFilters
+              availableBrands={availableBrands}
+              maxPrice={maxPrice}
+              onFilterChange={setFilters}
+              initialFilters={filters}
+            />
           </aside>
 
           {/* Main Content */}

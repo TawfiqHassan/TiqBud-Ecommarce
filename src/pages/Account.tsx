@@ -20,8 +20,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save, ChevronDown, ChevronUp, Lock, RefreshCcw } from 'lucide-react';
+import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save, ChevronDown, ChevronUp, Lock, RefreshCcw, FileText } from 'lucide-react';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
+import OrderInvoice from '@/components/OrderInvoice';
 import { CartProvider, useCart } from '@/context/CartContext';
 
 interface Order {
@@ -31,8 +32,25 @@ interface Order {
   total: number;
   payment_status: string;
   customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
   shipping_address: string;
   city: string;
+  district: string | null;
+  postal_code: string | null;
+  payment_method: string;
+  subtotal: number;
+  shipping_cost: number;
+  discount: number;
+  coupon_code: string | null;
+}
+
+interface OrderItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
 }
 
 interface Address {
@@ -85,6 +103,8 @@ const AccountContent: React.FC = () => {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<OrderItem[]>([]);
   const { addToCart } = useCart();
   
   const [addressForm, setAddressForm] = useState({
@@ -112,7 +132,7 @@ const AccountContent: React.FC = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('orders')
-        .select('id, created_at, status, total, payment_status, customer_name, shipping_address, city')
+        .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -805,18 +825,33 @@ const AccountContent: React.FC = () => {
                                 </div>
                               </div>
                               
-                              {/* Reorder Button */}
-                              {order.status === 'delivered' && (
-                                <div className="mt-4 pt-4 border-t border-border">
+                              {/* Invoice & Reorder Buttons */}
+                              <div className="mt-4 pt-4 border-t border-border flex gap-2">
+                                <Button 
+                                  variant="outline"
+                                  onClick={async () => {
+                                    const { data: items } = await supabase
+                                      .from('order_items')
+                                      .select('*')
+                                      .eq('order_id', order.id);
+                                    setInvoiceItems(items || []);
+                                    setInvoiceOrder(order);
+                                  }}
+                                  className="flex-1"
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Invoice
+                                </Button>
+                                {order.status === 'delivered' && (
                                   <Button 
                                     onClick={() => handleReorder(order.id)}
-                                    className="w-full bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                                    className="flex-1 bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
                                   >
                                     <RefreshCcw className="h-4 w-4 mr-2" />
                                     Reorder
                                   </Button>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1003,6 +1038,16 @@ const AccountContent: React.FC = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Invoice Modal */}
+        {invoiceOrder && (
+          <OrderInvoice
+            order={invoiceOrder}
+            items={invoiceItems}
+            isOpen={!!invoiceOrder}
+            onClose={() => setInvoiceOrder(null)}
+          />
+        )}
       </main>
       <Footer />
     </div>

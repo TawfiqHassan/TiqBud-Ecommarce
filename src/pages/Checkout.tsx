@@ -447,7 +447,21 @@ const CheckoutContent = () => {
                       <p className="text-sm text-muted-foreground">Pay via Nagad mobile banking</p>
                     </Label>
                   </div>
+                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg hover:border-brand-gold/50 transition-colors bg-gradient-to-r from-green-500/5 to-blue-500/5">
+                    <RadioGroupItem value="sslcommerz" id="sslcommerz" />
+                    <Label htmlFor="sslcommerz" className="flex-1 cursor-pointer">
+                      <span className="font-medium">SSLCommerz</span>
+                      <p className="text-sm text-muted-foreground">Pay with Cards, Mobile Banking, Net Banking (Coming Soon)</p>
+                    </Label>
+                  </div>
                 </RadioGroup>
+                {formData.paymentMethod === 'sslcommerz' && (
+                  <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                      ⚠️ SSLCommerz integration is being configured. Please use another payment method for now.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Order Notes */}
