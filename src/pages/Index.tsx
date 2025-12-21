@@ -1,9 +1,9 @@
-
-import { useState } from 'react';
 import Header from '@/components/Header';
 import Hero from '@/components/Hero';
 import ProductCategories from '@/components/ProductCategories';
 import FeaturedProducts from '@/components/FeaturedProducts';
+import RecentlyViewed from '@/components/RecentlyViewed';
+import ComparisonBar from '@/components/ComparisonBar';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
 
@@ -22,6 +22,12 @@ const Index = () => {
         
         {/* Featured products section */}
         <FeaturedProducts />
+        
+        {/* Recently viewed products */}
+        <RecentlyViewed />
+        
+        {/* Product comparison bar */}
+        <ComparisonBar />
         
         {/* Footer */}
         <Footer />

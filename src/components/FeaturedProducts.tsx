@@ -1,15 +1,18 @@
-
 import { useState } from 'react';
-import { Star, ShoppingCart, Heart, Eye } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Star, ShoppingCart, Heart, Eye, GitCompare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCart, Product } from '@/context/CartContext';
+import { useWishlist } from '@/hooks/useWishlist';
+import { useProductComparison } from '@/hooks/useProductComparison';
 import { toast } from 'sonner';
 
 const FeaturedProducts = () => {
   const { addToCart } = useCart();
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const { addToComparison, isInComparison } = useProductComparison();
 
   // Sample featured products data with BDT pricing
   const featuredProducts: Product[] = [
@@ -87,15 +90,6 @@ const FeaturedProducts = () => {
     toast.success(`${product.name} added to cart!`);
   };
 
-  // Handle adding/removing from favorites
-  const toggleFavorite = (productId: string) => {
-    setFavorites(prev =>
-      prev.includes(productId)
-        ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
-  };
-
   // Render star rating
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -134,13 +128,15 @@ const FeaturedProducts = () => {
             >
               <div className="relative">
                 {/* Product image */}
-                <div className="aspect-video overflow-hidden">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
+                <Link to={`/product/${product.id}`}>
+                  <div className="aspect-video overflow-hidden">
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+                </Link>
 
                 {/* Product badges */}
                 <div className="absolute top-4 left-4 flex flex-col gap-2">
@@ -159,12 +155,12 @@ const FeaturedProducts = () => {
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => toggleFavorite(product.id)}
+                    onClick={() => toggleWishlist(product.id)}
                     className="w-10 h-10 p-0"
                   >
                     <Heart 
                       className={`w-4 h-4 ${
-                        favorites.includes(product.id) 
+                        isInWishlist(product.id) 
                           ? 'fill-red-500 text-red-500' 
                           : 'text-muted-foreground'
                       }`} 
@@ -173,10 +169,21 @@ const FeaturedProducts = () => {
                   <Button
                     size="sm"
                     variant="secondary"
+                    onClick={() => addToComparison(product.id)}
+                    disabled={isInComparison(product.id)}
                     className="w-10 h-10 p-0"
                   >
-                    <Eye className="w-4 h-4" />
+                    <GitCompare className={`w-4 h-4 ${isInComparison(product.id) ? 'text-brand-gold' : ''}`} />
                   </Button>
+                  <Link to={`/product/${product.id}`}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="w-10 h-10 p-0"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
 
@@ -184,9 +191,11 @@ const FeaturedProducts = () => {
                 {/* Product info */}
                 <div className="space-y-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-brand-gold transition-colors">
-                      {product.name}
-                    </h3>
+                    <Link to={`/product/${product.id}`}>
+                      <h3 className="text-lg font-semibold text-foreground mb-1 group-hover:text-brand-gold transition-colors">
+                        {product.name}
+                      </h3>
+                    </Link>
                     <p className="text-muted-foreground text-sm line-clamp-2">
                       {product.description}
                     </p>
@@ -223,13 +232,15 @@ const FeaturedProducts = () => {
         </div>
 
         <div className="text-center mt-10">
-          <Button 
-            size="lg"
-            variant="outline"
-            className="border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-brand-dark px-8"
-          >
-            View All Products
-          </Button>
+          <Link to="/pc-accessories">
+            <Button 
+              size="lg"
+              variant="outline"
+              className="border-brand-gold text-brand-gold hover:bg-brand-gold hover:text-brand-dark px-8"
+            >
+              View All Products
+            </Button>
+          </Link>
         </div>
       </div>
     </section>
