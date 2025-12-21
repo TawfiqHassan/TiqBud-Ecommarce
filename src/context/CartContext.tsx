@@ -1,28 +1,18 @@
-
 import React, { createContext, useContext, useState } from 'react';
 
-// Product interface definition
-export interface Product {
+// Cart item interface
+export interface CartItem {
   id: string;
   name: string;
   price: number;
   image: string;
-  category: string;
-  description: string;
-  inStock: boolean;
-  rating: number;
-  reviews: number;
-}
-
-// Cart item interface (extends Product with quantity)
-export interface CartItem extends Product {
   quantity: number;
 }
 
 // Cart context type definition
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (product: Product) => void;
+  addToCart: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -38,17 +28,23 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
   // Add item to cart or increase quantity if already exists
-  const addToCart = (product: Product) => {
+  const addToCart = (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
     setCartItems(prev => {
-      const existingItem = prev.find(item => item.id === product.id);
+      const existingItem = prev.find(cartItem => cartItem.id === item.id);
       if (existingItem) {
-        return prev.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        return prev.map(cartItem =>
+          cartItem.id === item.id
+            ? { ...cartItem, quantity: cartItem.quantity + (item.quantity || 1) }
+            : cartItem
         );
       }
-      return [...prev, { ...product, quantity: 1 }];
+      return [...prev, { 
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        quantity: item.quantity || 1 
+      }];
     });
   };
 
