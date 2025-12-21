@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
@@ -24,8 +24,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Check, X, Shield, Users, Clock, Trash2 } from 'lucide-react';
+import { Check, X, Shield, Users, Clock, Trash2, UserPlus } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -40,6 +51,13 @@ interface UserProfile {
 const AdminUsers: React.FC = () => {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
+  
+  // Create admin dialog state
+  const [createAdminOpen, setCreateAdminOpen] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['admin-users'],
@@ -64,6 +82,60 @@ const AdminUsers: React.FC = () => {
       })) as UserProfile[];
     }
   });
+
+  const handleCreateAdmin = async () => {
+    if (!newAdminEmail || !newAdminPassword || !newAdminName) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    if (newAdminPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    
+    setIsCreatingAdmin(true);
+    try {
+      // Create user via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newAdminEmail,
+        password: newAdminPassword,
+        options: {
+          data: {
+            full_name: newAdminName
+          }
+        }
+      });
+      
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user');
+      
+      // Add admin role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: authData.user.id, role: 'admin' });
+      
+      if (roleError) throw roleError;
+      
+      // Approve the admin user
+      const { error: approveError } = await supabase
+        .from('profiles')
+        .update({ is_approved: true })
+        .eq('user_id', authData.user.id);
+      
+      if (approveError) throw approveError;
+      
+      toast.success('Admin account created successfully!');
+      setCreateAdminOpen(false);
+      setNewAdminEmail('');
+      setNewAdminPassword('');
+      setNewAdminName('');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create admin');
+    } finally {
+      setIsCreatingAdmin(false);
+    }
+  };
 
   const approveMutation = useMutation({
     mutationFn: async ({ userId, approved }: { userId: string; approved: boolean }) => {
@@ -139,8 +211,9 @@ const AdminUsers: React.FC = () => {
     onError: (error: Error) => toast.error(error.message)
   });
 
-  const pendingUsers = users?.filter(u => !u.is_approved) || [];
-  const approvedUsers = users?.filter(u => u.is_approved) || [];
+  // Admins don't need approval - exclude them from pending list
+  const pendingUsers = users?.filter(u => !u.is_approved && u.role !== 'admin') || [];
+  const approvedUsers = users?.filter(u => u.is_approved || u.role === 'admin') || [];
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString();
 
@@ -156,13 +229,74 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold">User Management</h1>
           <p className="text-muted-foreground">Approve users and manage admin access</p>
         </div>
-        <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-          Admin login: <a href="/admin-login" className="text-brand-gold hover:underline">/admin-login</a>
+        <div className="flex items-center gap-3">
+          <Dialog open={createAdminOpen} onOpenChange={setCreateAdminOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Create Admin
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Admin</DialogTitle>
+                <DialogDescription>
+                  Create a new administrator account. They can log in at /admin-login.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-name">Full Name</Label>
+                  <Input
+                    id="admin-name"
+                    placeholder="Admin Name"
+                    value={newAdminName}
+                    onChange={(e) => setNewAdminName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">Email</Label>
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    placeholder="admin@example.com"
+                    value={newAdminEmail}
+                    onChange={(e) => setNewAdminEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">Password</Label>
+                  <Input
+                    id="admin-password"
+                    type="password"
+                    placeholder="Min 6 characters"
+                    value={newAdminPassword}
+                    onChange={(e) => setNewAdminPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCreateAdminOpen(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateAdmin} 
+                  disabled={isCreatingAdmin}
+                  className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                >
+                  {isCreatingAdmin ? 'Creating...' : 'Create Admin'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+            Admin login: <a href="/admin-login" className="text-brand-gold hover:underline">/admin-login</a>
+          </div>
         </div>
       </div>
 

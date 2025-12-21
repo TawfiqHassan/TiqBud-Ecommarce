@@ -518,9 +518,6 @@ const Auth: React.FC = () => {
         </CardContent>
       </Card>
       
-      <p className="mt-6 text-sm text-muted-foreground">
-        Site admin? <Link to="/admin-login" className="text-brand-gold hover:underline">Admin Login</Link>
-      </p>
     </div>
   );
 };
