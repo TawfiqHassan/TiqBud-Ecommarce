@@ -10,6 +10,7 @@ import MobileAccessories from "./pages/MobileAccessories";
 import Blog from "./pages/Blog";
 import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
+import AdminAuth from "./pages/AdminAuth";
 import Checkout from "./pages/Checkout";
 import NotFound from "./pages/NotFound";
 import ProductDetail from "./pages/ProductDetail";
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/blog" element={<Blog />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/admin-login" element={<AdminAuth />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/account" element={<Account />} />
             <Route path="/product/:id" element={<ProductDetail />} />

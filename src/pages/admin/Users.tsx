@@ -74,8 +74,10 @@ const AdminUsers: React.FC = () => {
       if (error) throw error;
     },
     onSuccess: (_, { approved }) => {
+      // Force immediate refetch
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast.success(approved ? 'User approved' : 'User access revoked');
+      queryClient.refetchQueries({ queryKey: ['admin-users'] });
+      toast.success(approved ? 'User approved successfully' : 'User access revoked');
     },
     onError: (error: Error) => toast.error(error.message)
   });
@@ -137,9 +139,14 @@ const AdminUsers: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">User Management</h1>
-        <p className="text-muted-foreground">Approve users and manage admin access</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">User Management</h1>
+          <p className="text-muted-foreground">Approve users and manage admin access</p>
+        </div>
+        <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+          Admin login: <a href="/admin-login" className="text-brand-gold hover:underline">/admin-login</a>
+        </div>
       </div>
 
       {/* Pending Approvals */}
