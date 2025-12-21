@@ -1,13 +1,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Search, Menu, X } from 'lucide-react';
+import { ShoppingCart, Search, Menu, X, ChevronDown, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCart } from '@/context/CartContext';
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { useNavbarSettings, MenuItem } from '@/hooks/useNavbarSettings';
 import CartDrawer from './CartDrawer';
 import logo from '@/assets/logo.png';
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from '@/components/ui/navigation-menu';
 
 interface SearchProduct {
   id: string;
@@ -23,26 +33,24 @@ const Header = () => {
   const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [expandedMobile, setExpandedMobile] = useState<string | null>(null);
   const { getTotalItems } = useCart();
+  const { user } = useAuth();
   const { data: siteSettings } = useSiteSettings();
+  const { data: menuItems = [] } = useNavbarSettings();
   const location = useLocation();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
-  
-  const announcement = siteSettings?.announcement_bar;
 
-  // Navigation menu items
-  const menuItems = [
-    { name: 'Home', href: '/' },
-    { name: 'PC Accessories', href: '/pc-accessories' },
-    { name: 'Mobile Accessories', href: '/mobile-accessories' },
-    { name: 'Blog & Reviews', href: '/blog' },
-    { name: 'Contact', href: '/contact' },
-  ];
+  const announcement = siteSettings?.announcement_bar;
 
   const isActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
     return location.pathname.startsWith(href);
+  };
+
+  const hasChildren = (item: MenuItem): boolean => {
+    return !!(item.children && item.children.length > 0);
   };
 
   // Search products from database
@@ -91,8 +99,7 @@ const Header = () => {
   const handleProductClick = (productId: string) => {
     setShowResults(false);
     setSearchQuery('');
-    // Navigate to product detail page when implemented
-    navigate(`/`);
+    navigate(`/product/${productId}`);
   };
 
   return (
@@ -113,21 +120,48 @@ const Header = () => {
             </Link>
 
             {/* Desktop navigation */}
-            <nav className="hidden lg:flex items-center space-x-6">
-              {menuItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`font-medium transition-colors duration-200 ${
-                    isActive(item.href)
-                      ? 'text-brand-gold'
-                      : 'text-foreground/80 hover:text-brand-gold'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </nav>
+            <NavigationMenu className="hidden lg:flex">
+              <NavigationMenuList>
+                {menuItems.map((item) => (
+                  <NavigationMenuItem key={item.name}>
+                    {hasChildren(item) ? (
+                      <>
+                        <NavigationMenuTrigger className={`bg-transparent ${isActive(item.href) ? 'text-brand-gold' : 'text-foreground/80 hover:text-brand-gold'}`}>
+                          {item.name}
+                        </NavigationMenuTrigger>
+                        <NavigationMenuContent>
+                          <ul className="grid w-48 gap-1 p-2 bg-card border border-border">
+                            {item.children?.map((child) => (
+                              <li key={child.name}>
+                                <NavigationMenuLink asChild>
+                                  <Link
+                                    to={child.href}
+                                    className="block select-none rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-secondary hover:text-brand-gold"
+                                  >
+                                    {child.name}
+                                  </Link>
+                                </NavigationMenuLink>
+                              </li>
+                            ))}
+                          </ul>
+                        </NavigationMenuContent>
+                      </>
+                    ) : (
+                      <Link
+                        to={item.href}
+                        className={`px-4 py-2 font-medium transition-colors duration-200 ${
+                          isActive(item.href)
+                            ? 'text-brand-gold'
+                            : 'text-foreground/80 hover:text-brand-gold'
+                        }`}
+                      >
+                        {item.name}
+                      </Link>
+                    )}
+                  </NavigationMenuItem>
+                ))}
+              </NavigationMenuList>
+            </NavigationMenu>
 
             {/* Search bar with dropdown */}
             <div className="hidden md:flex items-center space-x-4 flex-1 max-w-sm mx-6" ref={searchRef}>
@@ -173,8 +207,17 @@ const Header = () => {
               </div>
             </div>
 
-            {/* Cart and menu buttons */}
+            {/* Cart, Account and menu buttons */}
             <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(user ? '/account' : '/auth')}
+                className="text-foreground hover:text-brand-gold hover:bg-secondary"
+              >
+                <User className="w-5 h-5" />
+              </Button>
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -217,18 +260,49 @@ const Header = () => {
                 </div>
                 
                 {menuItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    onClick={() => setIsMenuOpen(false)}
-                    className={`py-3 px-4 rounded-md transition-colors duration-200 ${
-                      isActive(item.href)
-                        ? 'bg-brand-gold/10 text-brand-gold font-semibold'
-                        : 'text-foreground hover:text-brand-gold hover:bg-secondary'
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
+                  <div key={item.name}>
+                    {hasChildren(item) ? (
+                      <div>
+                        <button
+                          onClick={() => setExpandedMobile(expandedMobile === item.name ? null : item.name)}
+                          className={`w-full flex items-center justify-between py-3 px-4 rounded-md transition-colors duration-200 ${
+                            isActive(item.href)
+                              ? 'bg-brand-gold/10 text-brand-gold font-semibold'
+                              : 'text-foreground hover:text-brand-gold hover:bg-secondary'
+                          }`}
+                        >
+                          {item.name}
+                          <ChevronDown className={`w-4 h-4 transition-transform ${expandedMobile === item.name ? 'rotate-180' : ''}`} />
+                        </button>
+                        {expandedMobile === item.name && (
+                          <div className="pl-4 space-y-1 mt-1">
+                            {item.children?.map((child) => (
+                              <Link
+                                key={child.name}
+                                to={child.href}
+                                onClick={() => setIsMenuOpen(false)}
+                                className="block py-2 px-4 text-muted-foreground hover:text-brand-gold transition-colors"
+                              >
+                                {child.name}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <Link
+                        to={item.href}
+                        onClick={() => setIsMenuOpen(false)}
+                        className={`block py-3 px-4 rounded-md transition-colors duration-200 ${
+                          isActive(item.href)
+                            ? 'bg-brand-gold/10 text-brand-gold font-semibold'
+                            : 'text-foreground hover:text-brand-gold hover:bg-secondary'
+                        }`}
+                      >
+                        {item.name}
+                      </Link>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
