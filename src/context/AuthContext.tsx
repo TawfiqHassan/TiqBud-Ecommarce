@@ -44,19 +44,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Only synchronous state updates here
         setSession(session);
         setUser(session?.user ?? null);
-        
+        setIsLoading(true);
+
         // Defer admin check with setTimeout to prevent deadlock
         if (session?.user) {
           setTimeout(() => {
-            checkAdminRole(session.user.id).then(setIsAdmin);
+            checkAdminRole(session.user.id)
+              .then((admin) => setIsAdmin(admin))
+              .finally(() => setIsLoading(false));
           }, 0);
         } else {
           setIsAdmin(false);
+          setIsLoading(false);
         }
-        
-        setIsLoading(false);
       }
     );
 
@@ -64,12 +67,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+      setIsLoading(true);
+
       if (session?.user) {
-        checkAdminRole(session.user.id).then(setIsAdmin);
+        checkAdminRole(session.user.id)
+          .then((admin) => setIsAdmin(admin))
+          .finally(() => setIsLoading(false));
+      } else {
+        setIsAdmin(false);
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
