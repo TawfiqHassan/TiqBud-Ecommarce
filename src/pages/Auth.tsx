@@ -43,7 +43,7 @@ const securityQuestions = [
 const Auth: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, isAdmin, isApproved, signIn, signUp, resetPassword, isLoading } = useAuth();
+  const { user, isAdmin, isApproved, signIn, signUp, resetPassword, signOut, isLoading } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'login' | 'signup' | 'forgot'>('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -105,12 +105,11 @@ const Auth: React.FC = () => {
             <p className="text-sm text-muted-foreground mb-4">
               Logged in as: <span className="font-medium">{user.email}</span>
             </p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={async () => {
-                const { signOut } = await import('@/integrations/supabase/client').then(m => m.supabase.auth);
                 await signOut();
-                window.location.reload();
+                navigate('/auth');
               }}
             >
               Sign Out
