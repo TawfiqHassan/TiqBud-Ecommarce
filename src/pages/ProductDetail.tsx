@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, ShoppingCart, Heart, Minus, Plus, ChevronLeft, Package, Shield, Truck } from 'lucide-react';
+import { Star, ShoppingCart, Heart, Minus, Plus, Package, Shield, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,10 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
 import ProductReviews from '@/components/ProductReviews';
+import SocialShare from '@/components/SocialShare';
+import RelatedProducts from '@/components/RelatedProducts';
+import Breadcrumbs from '@/components/Breadcrumbs';
+import ImageGallery from '@/components/ImageGallery';
 
 const ProductDetailContent = () => {
   const { id } = useParams<{ id: string }>();
@@ -88,27 +92,22 @@ const ProductDetailContent = () => {
       <Header />
       
       <div className="container mx-auto px-4 py-8">
-        {/* Breadcrumb */}
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate(-1)}
-          className="mb-6 text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Back
-        </Button>
+        {/* Breadcrumbs */}
+        <div className="mb-6">
+          <Breadcrumbs
+            items={[
+              { label: product.category?.name || 'Products', href: product.category ? `/category/${product.category.slug}` : '/products' },
+              { label: product.name },
+            ]}
+          />
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Product Image */}
-          <div className="space-y-4">
-            <div className="aspect-square bg-card rounded-lg border border-border overflow-hidden">
-              <img
-                src={product.image_url || '/placeholder.svg'}
-                alt={product.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          </div>
+          {/* Product Image Gallery with Zoom */}
+          <ImageGallery
+            images={product.image_url ? [product.image_url] : []}
+            productName={product.name}
+          />
 
           {/* Product Info */}
           <div className="space-y-6">
@@ -210,6 +209,8 @@ const ProductDetailContent = () => {
               >
                 <Heart className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
               </Button>
+
+              <SocialShare title={product.name} description={product.description || ''} />
             </div>
 
             {/* Features */}
@@ -267,6 +268,11 @@ const ProductDetailContent = () => {
               <ProductReviews productId={product.id} />
             </TabsContent>
           </Tabs>
+        </div>
+
+        {/* Related Products */}
+        <div className="mt-16">
+          <RelatedProducts categoryId={product.category_id} currentProductId={product.id} />
         </div>
       </div>
 
