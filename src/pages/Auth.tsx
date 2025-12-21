@@ -28,7 +28,7 @@ const signupSchema = z.object({
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
-  const { user, signIn, signUp, isLoading } = useAuth();
+  const { user, isAdmin, signIn, signUp, isLoading } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,9 +46,9 @@ const Auth: React.FC = () => {
 
   useEffect(() => {
     if (user && !isLoading) {
-      navigate('/');
+      navigate(isAdmin ? '/admin' : '/');
     }
-  }, [user, isLoading, navigate]);
+  }, [user, isAdmin, isLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +76,7 @@ const Auth: React.FC = () => {
     }
     
     toast.success('Welcome back!');
-    navigate('/');
+    // Redirect handled by auth state effect (user + role).
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -112,7 +112,7 @@ const Auth: React.FC = () => {
     }
     
     toast.success('Account created successfully!');
-    navigate('/');
+    // Redirect handled by auth state effect (user + role).
   };
 
   if (isLoading) {
