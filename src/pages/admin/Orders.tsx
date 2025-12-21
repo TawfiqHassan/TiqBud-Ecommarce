@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -36,8 +37,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { toast } from 'sonner';
-import { Search, Eye, Trash2 } from 'lucide-react';
+import { Search, Eye, Trash2, Download, ChevronDown, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface Order {
   id: string;
@@ -70,9 +80,14 @@ const AdminOrders: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
 
   const { data: orders, isLoading } = useQuery({
-    queryKey: ['admin-orders', searchQuery, statusFilter],
+    queryKey: ['admin-orders', searchQuery, statusFilter, dateRange.from, dateRange.to],
     queryFn: async () => {
       let query = supabase
         .from('orders')
@@ -85,6 +100,15 @@ const AdminOrders: React.FC = () => {
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
+      }
+
+      if (dateRange.from) {
+        query = query.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
       }
 
       const { data, error } = await query;
@@ -151,6 +175,87 @@ const AdminOrders: React.FC = () => {
     }
   });
 
+  // Bulk status update mutation
+  const bulkUpdateStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const { error } = await supabase.from('orders').update({ status }).in('id', ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      setSelectedOrders([]);
+      toast.success('Orders updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (orders && selectedOrders.length === orders.length) {
+      setSelectedOrders([]);
+    } else if (orders) {
+      setSelectedOrders(orders.map(o => o.id));
+    }
+  };
+
+  const toggleSelectOrder = (id: string) => {
+    setSelectedOrders(prev =>
+      prev.includes(id) ? prev.filter(o => o !== id) : [...prev, id]
+    );
+  };
+
+  // Export to CSV
+  const exportToCSV = () => {
+    if (!orders || orders.length === 0) {
+      toast.error('No orders to export');
+      return;
+    }
+
+    const ordersToExport = selectedOrders.length > 0 
+      ? orders.filter(o => selectedOrders.includes(o.id))
+      : orders;
+
+    const headers = [
+      'Order ID', 'Date', 'Customer Name', 'Email', 'Phone', 
+      'Address', 'City', 'Status', 'Payment Method', 'Payment Status',
+      'Subtotal', 'Shipping', 'Discount', 'Total'
+    ];
+
+    const rows = ordersToExport.map(order => [
+      order.id.slice(0, 8).toUpperCase(),
+      format(new Date(order.created_at), 'yyyy-MM-dd HH:mm'),
+      order.customer_name,
+      order.customer_email,
+      order.customer_phone || '',
+      order.shipping_address,
+      order.city,
+      order.status,
+      order.payment_method,
+      order.payment_status,
+      order.subtotal,
+      order.shipping_cost,
+      order.discount,
+      order.total
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orders_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success(`Exported ${ordersToExport.length} orders`);
+  };
+
   const formatPrice = (price: number) => `৳${price.toLocaleString('en-BD')}`;
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-BD', {
     year: 'numeric',
@@ -164,13 +269,19 @@ const AdminOrders: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Orders</h1>
-        <p className="text-muted-foreground">Manage customer orders</p>
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Orders</h1>
+          <p className="text-muted-foreground">Manage customer orders</p>
+        </div>
+        <Button variant="outline" onClick={exportToCSV}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV {selectedOrders.length > 0 && `(${selectedOrders.length})`}
+        </Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -194,13 +305,86 @@ const AdminOrders: React.FC = () => {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Date Range Filter */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-[240px] justify-start text-left font-normal">
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateRange.from ? (
+                dateRange.to ? (
+                  `${format(dateRange.from, 'MMM d')} - ${format(dateRange.to, 'MMM d')}`
+                ) : (
+                  format(dateRange.from, 'MMM d, yyyy')
+                )
+              ) : (
+                'Select date range'
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              selected={{ from: dateRange.from, to: dateRange.to }}
+              onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+              numberOfMonths={2}
+            />
+            {(dateRange.from || dateRange.to) && (
+              <div className="p-2 border-t">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setDateRange({ from: undefined, to: undefined })}
+                >
+                  Clear dates
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
       </div>
+
+      {/* Bulk Actions Bar */}
+      {selectedOrders.length > 0 && (
+        <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-lg">
+          <span className="text-sm font-medium">{selectedOrders.length} selected</span>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                Update Status <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {statusOptions.map((status) => (
+                <DropdownMenuItem 
+                  key={status}
+                  onClick={() => bulkUpdateStatusMutation.mutate({ ids: selectedOrders, status })}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="ghost" size="sm" onClick={() => setSelectedOrders([])}>
+            Clear
+          </Button>
+        </div>
+      )}
 
       {/* Orders Table */}
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={orders && orders.length > 0 && selectedOrders.length === orders.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead>Order</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Date</TableHead>
@@ -212,13 +396,19 @@ const AdminOrders: React.FC = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold mx-auto"></div>
                 </TableCell>
               </TableRow>
             ) : orders && orders.length > 0 ? (
               orders.map((order) => (
-                <TableRow key={order.id}>
+                <TableRow key={order.id} className={selectedOrders.includes(order.id) ? 'bg-muted/50' : ''}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedOrders.includes(order.id)}
+                      onCheckedChange={() => toggleSelectOrder(order.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <p className="font-mono text-sm">
                       #{order.id.slice(0, 8).toUpperCase()}
@@ -295,7 +485,7 @@ const AdminOrders: React.FC = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No orders found
                 </TableCell>
               </TableRow>
