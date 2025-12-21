@@ -73,13 +73,30 @@ const AdminUsers: React.FC = () => {
         .eq('user_id', userId);
       if (error) throw error;
     },
-    onSuccess: (_, { approved }) => {
-      // Force immediate refetch
+    onMutate: async ({ userId, approved }) => {
+      // Optimistic UI update so the row disappears immediately
+      await queryClient.cancelQueries({ queryKey: ['admin-users'] });
+      const previous = queryClient.getQueryData<UserProfile[]>(['admin-users']);
+      if (previous) {
+        queryClient.setQueryData<UserProfile[]>(['admin-users'],
+          previous.map((p) => (p.user_id === userId ? { ...p, is_approved: approved } : p))
+        );
+      }
+      return { previous };
+    },
+    onError: (error: Error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['admin-users'], context.previous);
+      }
+      toast.error(error.message);
+    },
+    onSuccess: (_data, { approved }) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      queryClient.refetchQueries({ queryKey: ['admin-users'] });
       toast.success(approved ? 'User approved successfully' : 'User access revoked');
     },
-    onError: (error: Error) => toast.error(error.message)
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
   });
 
   const toggleAdminMutation = useMutation({
