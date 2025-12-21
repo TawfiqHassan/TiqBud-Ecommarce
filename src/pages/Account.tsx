@@ -20,7 +20,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save } from 'lucide-react';
+import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import OrderStatusTimeline from '@/components/OrderStatusTimeline';
 import { CartProvider } from '@/context/CartContext';
 
 interface Order {
@@ -29,6 +30,9 @@ interface Order {
   status: string;
   total: number;
   payment_status: string;
+  customer_name: string;
+  shipping_address: string;
+  city: string;
 }
 
 interface Address {
@@ -77,6 +81,7 @@ const AccountContent: React.FC = () => {
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   
   const [addressForm, setAddressForm] = useState({
     label: 'Home',
@@ -103,7 +108,7 @@ const AccountContent: React.FC = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('orders')
-        .select('id, created_at, status, total, payment_status')
+        .select('id, created_at, status, total, payment_status, customer_name, shipping_address, city')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -599,20 +604,64 @@ const AccountContent: React.FC = () => {
                   <div className="text-center py-8">Loading...</div>
                 ) : orders && orders.length > 0 ? (
                   <div className="space-y-4">
-                    {orders.map((order) => (
-                      <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <p className="font-medium">Order #{order.id.slice(0, 8)}</p>
-                          <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
+                    {orders.map((order) => {
+                      const isExpanded = expandedOrderId === order.id;
+                      return (
+                        <div key={order.id} className="border rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                            className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="text-left">
+                              <p className="font-medium">Order #{order.id.slice(0, 8)}</p>
+                              <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <p className="font-bold text-brand-gold">{formatPrice(order.total)}</p>
+                                <Badge className={statusColors[order.status] || ''}>
+                                  {order.status}
+                                </Badge>
+                              </div>
+                              {isExpanded ? (
+                                <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </div>
+                          </button>
+                          
+                          {isExpanded && (
+                            <div className="px-4 pb-4 border-t bg-muted/30">
+                              <OrderStatusTimeline 
+                                status={order.status} 
+                                createdAt={order.created_at} 
+                              />
+                              <div className="mt-4 pt-4 border-t border-border">
+                                <h4 className="text-sm font-medium mb-2">Delivery Address</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {order.customer_name}<br />
+                                  {order.shipping_address}<br />
+                                  {order.city}
+                                </p>
+                              </div>
+                              <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Payment Status</p>
+                                  <Badge variant={order.payment_status === 'paid' ? 'default' : 'outline'}>
+                                    {order.payment_status}
+                                  </Badge>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm text-muted-foreground">Total</p>
+                                  <p className="text-lg font-bold text-brand-gold">{formatPrice(order.total)}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-brand-gold">{formatPrice(order.total)}</p>
-                          <Badge className={statusColors[order.status] || ''}>
-                            {order.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
