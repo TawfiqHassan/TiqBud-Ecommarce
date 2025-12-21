@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -30,8 +30,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, Upload, Download, FileSpreadsheet } from 'lucide-react';
 import { useCategories } from '@/hooks/useProducts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 
 interface Product {
   id: string;
@@ -49,11 +51,30 @@ interface Product {
   category?: { name: string } | null;
 }
 
+interface BulkImportRow {
+  name: string;
+  description?: string;
+  price: number;
+  original_price?: number;
+  category_name?: string;
+  image_url?: string;
+  stock: number;
+  is_featured?: boolean;
+  is_active?: boolean;
+  sku?: string;
+  brand?: string;
+}
+
 const AdminProducts: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [bulkImportData, setBulkImportData] = useState<BulkImportRow[]>([]);
+  const [importProgress, setImportProgress] = useState(0);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -183,6 +204,179 @@ const AdminProducts: React.FC = () => {
     setEditingProduct(null);
   };
 
+  // CSV Template Download
+  const downloadCSVTemplate = () => {
+    const headers = ['name', 'description', 'price', 'original_price', 'category_name', 'image_url', 'stock', 'sku', 'brand', 'is_featured', 'is_active'];
+    const sampleRow = ['Sample Product', 'Product description here', '1000', '1200', 'Mobile Accessories', 'https://example.com/image.jpg', '50', 'SKU-001', 'Brand Name', 'false', 'true'];
+    const csvContent = [headers.join(','), sampleRow.join(',')].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'products_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success('Template downloaded');
+  };
+
+  // Parse CSV file
+  const parseCSV = (text: string): BulkImportRow[] => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return [];
+    
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const products: BulkImportRow[] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      const product: any = {};
+      
+      headers.forEach((header, index) => {
+        const value = values[index] || '';
+        switch (header) {
+          case 'name':
+            product.name = value;
+            break;
+          case 'description':
+            product.description = value || undefined;
+            break;
+          case 'price':
+            product.price = parseFloat(value) || 0;
+            break;
+          case 'original_price':
+            product.original_price = value ? parseFloat(value) : undefined;
+            break;
+          case 'category_name':
+            product.category_name = value || undefined;
+            break;
+          case 'image_url':
+            product.image_url = value || undefined;
+            break;
+          case 'stock':
+            product.stock = parseInt(value) || 0;
+            break;
+          case 'sku':
+            product.sku = value || undefined;
+            break;
+          case 'brand':
+            product.brand = value || undefined;
+            break;
+          case 'is_featured':
+            product.is_featured = value.toLowerCase() === 'true';
+            break;
+          case 'is_active':
+            product.is_active = value.toLowerCase() !== 'false';
+            break;
+        }
+      });
+      
+      if (product.name && product.price > 0) {
+        products.push(product);
+      }
+    }
+    
+    return products;
+  };
+
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please upload a CSV file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const parsed = parseCSV(text);
+      
+      if (parsed.length === 0) {
+        toast.error('No valid products found in CSV');
+        return;
+      }
+      
+      setBulkImportData(parsed);
+      toast.success(`Found ${parsed.length} products ready to import`);
+    };
+    reader.readAsText(file);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Bulk import products
+  const handleBulkImport = async () => {
+    if (bulkImportData.length === 0) {
+      toast.error('No products to import');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress(0);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < bulkImportData.length; i++) {
+      const product = bulkImportData[i];
+      
+      // Find category ID by name
+      let categoryId: string | null = null;
+      if (product.category_name && categories) {
+        const category = categories.find(
+          c => c.name.toLowerCase() === product.category_name?.toLowerCase()
+        );
+        categoryId = category?.id || null;
+      }
+
+      try {
+        const { error } = await supabase.from('products').insert({
+          name: product.name,
+          description: product.description || null,
+          price: product.price,
+          original_price: product.original_price || null,
+          category_id: categoryId,
+          image_url: product.image_url || null,
+          stock: product.stock,
+          sku: product.sku || null,
+          brand: product.brand || null,
+          is_featured: product.is_featured || false,
+          is_active: product.is_active !== false
+        });
+
+        if (error) {
+          errorCount++;
+          console.error(`Failed to import "${product.name}":`, error.message);
+        } else {
+          successCount++;
+        }
+      } catch (err) {
+        errorCount++;
+      }
+
+      setImportProgress(Math.round(((i + 1) / bulkImportData.length) * 100));
+    }
+
+    setIsImporting(false);
+    setBulkImportData([]);
+    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+
+    if (errorCount === 0) {
+      toast.success(`Successfully imported ${successCount} products`);
+    } else {
+      toast.warning(`Imported ${successCount} products, ${errorCount} failed`);
+    }
+
+    setIsBulkDialogOpen(false);
+  };
+
   const openEditDialog = (product: Product) => {
     setEditingProduct(product);
     setFormData({
@@ -226,16 +420,154 @@ const AdminProducts: React.FC = () => {
           <p className="text-muted-foreground">Manage your product catalog</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          {/* Bulk Import Dialog */}
+          <Dialog open={isBulkDialogOpen} onOpenChange={(open) => {
+            setIsBulkDialogOpen(open);
+            if (!open) {
+              setBulkImportData([]);
+              setImportProgress(0);
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Bulk Import
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5" />
+                  Bulk Product Import
+                </DialogTitle>
+                <DialogDescription>
+                  Import multiple products at once using a CSV file
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                {/* Download Template */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Step 1: Download Template</CardTitle>
+                    <CardDescription>
+                      Download the CSV template and fill in your product data
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="outline" onClick={downloadCSVTemplate} className="w-full">
+                      <Download className="h-4 w-4 mr-2" />
+                      Download CSV Template
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Upload CSV */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Step 2: Upload Your CSV</CardTitle>
+                    <CardDescription>
+                      Upload the filled CSV file to import products
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <Button 
+                      variant="outline" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full"
+                      disabled={isImporting}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Choose CSV File
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Preview & Import */}
+                {bulkImportData.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Step 3: Review & Import</CardTitle>
+                      <CardDescription>
+                        {bulkImportData.length} products ready to import
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Preview Table */}
+                      <div className="max-h-48 overflow-auto border rounded">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Price</TableHead>
+                              <TableHead>Stock</TableHead>
+                              <TableHead>Category</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {bulkImportData.slice(0, 5).map((product, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell className="font-medium">{product.name}</TableCell>
+                                <TableCell>৳{product.price}</TableCell>
+                                <TableCell>{product.stock}</TableCell>
+                                <TableCell>{product.category_name || '-'}</TableCell>
+                              </TableRow>
+                            ))}
+                            {bulkImportData.length > 5 && (
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                  ...and {bulkImportData.length - 5} more products
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* Progress */}
+                      {isImporting && (
+                        <div className="space-y-2">
+                          <Progress value={importProgress} className="h-2" />
+                          <p className="text-sm text-center text-muted-foreground">
+                            Importing... {importProgress}%
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Import Button */}
+                      <Button 
+                        onClick={handleBulkImport}
+                        className="w-full bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                        disabled={isImporting}
+                      >
+                        {isImporting ? 'Importing...' : `Import ${bulkImportData.length} Products`}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Product Dialog */}
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -381,7 +713,8 @@ const AdminProducts: React.FC = () => {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Search */}
