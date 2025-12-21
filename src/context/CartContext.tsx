@@ -1,5 +1,18 @@
 import React, { createContext, useContext, useState } from 'react';
 
+// Product interface for use across components
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  description: string;
+  inStock: boolean;
+  rating: number;
+  reviews: number;
+}
+
 // Cart item interface
 export interface CartItem {
   id: string;
