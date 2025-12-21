@@ -20,9 +20,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save, ChevronDown, ChevronUp, Lock, RefreshCcw } from 'lucide-react';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
-import { CartProvider } from '@/context/CartContext';
+import { CartProvider, useCart } from '@/context/CartContext';
 
 interface Order {
   id: string;
@@ -82,6 +82,10 @@ const AccountContent: React.FC = () => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const { addToCart } = useCart();
   
   const [addressForm, setAddressForm] = useState({
     label: 'Home',
@@ -101,7 +105,7 @@ const AccountContent: React.FC = () => {
     username: ''
   });
 
-  // Fetch orders
+  // Fetch orders with items
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: ['my-orders', user?.id],
     queryFn: async () => {
@@ -116,6 +120,16 @@ const AccountContent: React.FC = () => {
     },
     enabled: !!user
   });
+
+  // Fetch order items for reorder functionality
+  const fetchOrderItems = async (orderId: string) => {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('product_id, product_name, quantity, unit_price')
+      .eq('order_id', orderId);
+    if (error) throw error;
+    return data;
+  };
 
   // Fetch addresses
   const { data: addresses, isLoading: addressesLoading } = useQuery({
@@ -365,6 +379,75 @@ const AccountContent: React.FC = () => {
     updateProfileMutation.mutate(profileForm);
   };
 
+  // Password change handler
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Password updated successfully');
+      setIsPasswordDialogOpen(false);
+      setPasswordForm({ newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update password');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // Reorder handler
+  const handleReorder = async (orderId: string) => {
+    try {
+      const items = await fetchOrderItems(orderId);
+      if (!items || items.length === 0) {
+        toast.error('No items found in this order');
+        return;
+      }
+
+      for (const item of items) {
+        if (item.product_id) {
+          // Fetch product details
+          const { data: product } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', item.product_id)
+            .single();
+
+          if (product && product.is_active && product.stock > 0) {
+            addToCart({
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              image: product.image_url || '',
+              quantity: Math.min(item.quantity, product.stock)
+            });
+          }
+        }
+      }
+
+      toast.success('Items added to cart');
+      navigate('/checkout');
+    } catch (error: any) {
+      toast.error('Failed to reorder: ' + error.message);
+    }
+  };
+
   const formatPrice = (price: number) => `৳${price.toLocaleString()}`;
   const formatDate = (date: string) => new Date(date).toLocaleDateString();
 
@@ -590,6 +673,70 @@ const AccountContent: React.FC = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Password Change Card */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="h-5 w-5" />
+                  Security
+                </CardTitle>
+                <CardDescription>Manage your account security</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Lock className="h-4 w-4 mr-2" />
+                      Change Password
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Change Password</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handlePasswordChange} className="space-y-4">
+                      <div>
+                        <Label htmlFor="newPassword">New Password</Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          value={passwordForm.newPassword}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                          placeholder="Enter new password"
+                          minLength={6}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="confirmPassword">Confirm Password</Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={passwordForm.confirmPassword}
+                          onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                          placeholder="Confirm new password"
+                          minLength={6}
+                          required
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                          disabled={isChangingPassword}
+                        >
+                          {isChangingPassword ? 'Updating...' : 'Update Password'}
+                        </Button>
+                      </div>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Orders Tab */}
@@ -657,6 +804,19 @@ const AccountContent: React.FC = () => {
                                   <p className="text-lg font-bold text-brand-gold">{formatPrice(order.total)}</p>
                                 </div>
                               </div>
+                              
+                              {/* Reorder Button */}
+                              {order.status === 'delivered' && (
+                                <div className="mt-4 pt-4 border-t border-border">
+                                  <Button 
+                                    onClick={() => handleReorder(order.id)}
+                                    className="w-full bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                                  >
+                                    <RefreshCcw className="h-4 w-4 mr-2" />
+                                    Reorder
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

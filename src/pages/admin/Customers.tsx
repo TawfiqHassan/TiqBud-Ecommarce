@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -31,8 +32,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Search, User, Pencil, Trash2 } from 'lucide-react';
+import { Search, User, Pencil, Trash2, Download } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface Customer {
   id: string;
@@ -50,6 +53,7 @@ interface Customer {
 const AdminCustomers: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editForm, setEditForm] = useState({
     full_name: '',
@@ -134,6 +138,69 @@ const AdminCustomers: React.FC = () => {
     onError: (error: Error) => toast.error(error.message)
   });
 
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (customers && selectedCustomers.length === customers.length) {
+      setSelectedCustomers([]);
+    } else if (customers) {
+      setSelectedCustomers(customers.map(c => c.id));
+    }
+  };
+
+  const toggleSelectCustomer = (id: string) => {
+    setSelectedCustomers(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
+  };
+
+  // Export to CSV
+  const exportToCSV = () => {
+    if (!customers || customers.length === 0) {
+      toast.error('No customers to export');
+      return;
+    }
+
+    const customersToExport = selectedCustomers.length > 0
+      ? customers.filter(c => selectedCustomers.includes(c.id))
+      : customers;
+
+    const headers = ['ID', 'Full Name', 'Email', 'Phone', 'City', 'Username', 'Joined Date', 'Orders Count', 'Total Spent'];
+
+    const rows = customersToExport.map(customer => [
+      customer.id,
+      customer.full_name || '',
+      customer.email || '',
+      customer.phone || '',
+      customer.city || '',
+      customer.username || '',
+      format(new Date(customer.created_at), 'yyyy-MM-dd'),
+      customer.orders_count || 0,
+      customer.total_spent || 0
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `customers_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success(`Exported ${customersToExport.length} customers`);
+  };
+
+  // Get customer tier based on total spent
+  const getCustomerTier = (totalSpent: number) => {
+    if (totalSpent >= 50000) return { label: 'VIP', color: 'bg-yellow-500/20 text-yellow-500' };
+    if (totalSpent >= 20000) return { label: 'Premium', color: 'bg-purple-500/20 text-purple-500' };
+    if (totalSpent >= 5000) return { label: 'Regular', color: 'bg-blue-500/20 text-blue-500' };
+    return { label: 'New', color: 'bg-muted text-muted-foreground' };
+  };
+
   const handleEditClick = (customer: Customer) => {
     setEditingCustomer(customer);
     setEditForm({
@@ -168,9 +235,15 @@ const AdminCustomers: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Customers</h1>
-        <p className="text-muted-foreground">View and manage customers</p>
+      <div className="flex flex-col sm:flex-row justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Customers</h1>
+          <p className="text-muted-foreground">View and manage customers</p>
+        </div>
+        <Button variant="outline" onClick={exportToCSV}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV {selectedCustomers.length > 0 && `(${selectedCustomers.length})`}
+        </Button>
       </div>
 
       {/* Search */}
@@ -184,14 +257,31 @@ const AdminCustomers: React.FC = () => {
         />
       </div>
 
+      {/* Selection Info */}
+      {selectedCustomers.length > 0 && (
+        <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-lg">
+          <span className="text-sm font-medium">{selectedCustomers.length} selected</span>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedCustomers([])}>
+            Clear
+          </Button>
+        </div>
+      )}
+
       {/* Customers Table */}
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={customers && customers.length > 0 && selectedCustomers.length === customers.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>City</TableHead>
+              <TableHead>Tier</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead>Orders</TableHead>
               <TableHead>Total Spent</TableHead>
@@ -201,71 +291,83 @@ const AdminCustomers: React.FC = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold mx-auto"></div>
                 </TableCell>
               </TableRow>
             ) : customers && customers.length > 0 ? (
-              customers.map((customer) => (
-                <TableRow key={customer.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-muted-foreground" />
+              customers.map((customer) => {
+                const tier = getCustomerTier(customer.total_spent || 0);
+                return (
+                  <TableRow key={customer.id} className={selectedCustomers.includes(customer.id) ? 'bg-muted/50' : ''}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedCustomers.includes(customer.id)}
+                        onCheckedChange={() => toggleSelectCustomer(customer.id)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                          <User className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{customer.full_name || 'No name'}</p>
+                          <p className="text-sm text-muted-foreground">{customer.email}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{customer.full_name || 'No name'}</p>
-                        <p className="text-sm text-muted-foreground">{customer.email}</p>
+                    </TableCell>
+                    <TableCell>{customer.phone || '-'}</TableCell>
+                    <TableCell>{customer.city || '-'}</TableCell>
+                    <TableCell>
+                      <Badge className={tier.color}>{tier.label}</Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(customer.created_at)}</TableCell>
+                    <TableCell>{customer.orders_count}</TableCell>
+                    <TableCell className="font-medium text-brand-gold">
+                      {formatPrice(customer.total_spent || 0)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditClick(customer)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Customer?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete {customer.full_name || customer.email}'s profile. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => deleteMutation.mutate(customer.user_id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{customer.phone || '-'}</TableCell>
-                  <TableCell>{customer.city || '-'}</TableCell>
-                  <TableCell>{formatDate(customer.created_at)}</TableCell>
-                  <TableCell>{customer.orders_count}</TableCell>
-                  <TableCell className="font-medium text-brand-gold">
-                    {formatPrice(customer.total_spent || 0)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEditClick(customer)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Customer?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently delete {customer.full_name || customer.email}'s profile. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => deleteMutation.mutate(customer.user_id)}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   No customers found
                 </TableCell>
               </TableRow>
