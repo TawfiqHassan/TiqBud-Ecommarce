@@ -170,23 +170,23 @@ const ProductDetailContent = () => {
 
             {/* Quantity and Add to Cart */}
             <div className="flex items-center gap-4">
-              <div className="flex items-center border border-border rounded-lg">
+              <div className="flex items-center border border-border rounded-lg bg-secondary">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   disabled={quantity <= 1}
-                  className="h-12 w-12"
+                  className="h-12 w-12 text-foreground hover:text-foreground hover:bg-muted"
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
-                <span className="w-12 text-center font-medium">{quantity}</span>
+                <span className="w-12 text-center font-medium text-foreground">{quantity}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
                   disabled={quantity >= product.stock}
-                  className="h-12 w-12"
+                  className="h-12 w-12 text-foreground hover:text-foreground hover:bg-muted"
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
@@ -202,10 +202,10 @@ const ProductDetailContent = () => {
               </Button>
 
               <Button
-                variant="outline"
+                variant="secondary"
                 size="icon"
                 onClick={() => setIsFavorite(!isFavorite)}
-                className="h-12 w-12"
+                className="h-12 w-12 bg-secondary text-foreground hover:bg-muted border border-border"
               >
                 <Heart className={`w-5 h-5 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
               </Button>

@@ -1,115 +1,42 @@
 import { useState } from 'react';
-import { Star, ShoppingCart, Heart, Eye, Filter, Smartphone, Battery, Cable, Headphones, Shield } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Star, ShoppingCart, Heart, Eye, Filter, Smartphone, Battery, Cable, Headphones, Shield, Grid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useCart, Product } from '@/context/CartContext';
+import { useCart } from '@/context/CartContext';
 import { toast } from 'sonner';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
+import { Link } from 'react-router-dom';
 
-// Mobile Accessories subcategories
-const subcategories = [
-  { id: 'all', name: 'All Products', icon: Smartphone },
-  { id: 'chargers', name: 'Chargers & Cables', icon: Cable },
-  { id: 'powerbanks', name: 'Power Banks', icon: Battery },
-  { id: 'earbuds', name: 'Earbuds & Earphones', icon: Headphones },
-  { id: 'cases', name: 'Cases & Covers', icon: Shield },
-];
+// Extended product type for this page
+interface ProductWithExtras {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  description: string;
+  inStock: boolean;
+  rating: number;
+  reviews: number;
+  originalPrice?: number;
+}
 
-// Sample mobile products with BDT pricing
-const products: Product[] = [
-  {
-    id: 'm1',
-    name: '65W GaN Fast Charger',
-    price: 2499,
-    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
-    category: 'chargers',
-    description: 'Ultra-compact GaN charger with USB-C PD and USB-A ports',
-    inStock: true,
-    rating: 4.8,
-    reviews: 456
-  },
-  {
-    id: 'm2',
-    name: 'USB-C to Lightning Cable 2m',
-    price: 999,
-    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
-    category: 'chargers',
-    description: 'MFi certified braided cable for fast charging',
-    inStock: true,
-    rating: 4.6,
-    reviews: 234
-  },
-  {
-    id: 'm3',
-    name: '20000mAh Power Bank Pro',
-    price: 3999,
-    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
-    category: 'powerbanks',
-    description: '65W fast charging, LED display, dual USB-C ports',
-    inStock: true,
-    rating: 4.9,
-    reviews: 567
-  },
-  {
-    id: 'm4',
-    name: '10000mAh Slim Power Bank',
-    price: 1999,
-    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
-    category: 'powerbanks',
-    description: 'Ultra-slim design, fits in your pocket',
-    inStock: true,
-    rating: 4.5,
-    reviews: 189
-  },
-  {
-    id: 'm5',
-    name: 'True Wireless Earbuds Pro',
-    price: 4999,
-    image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=300&fit=crop',
-    category: 'earbuds',
-    description: 'ANC, 30hr battery, wireless charging case',
-    inStock: true,
-    rating: 4.7,
-    reviews: 678
-  },
-  {
-    id: 'm6',
-    name: 'Wired Earphones HD',
-    price: 799,
-    image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=300&fit=crop',
-    category: 'earbuds',
-    description: 'Type-C connector, built-in microphone',
-    inStock: true,
-    rating: 4.3,
-    reviews: 145
-  },
-  {
-    id: 'm7',
-    name: 'Premium Leather Case',
-    price: 1499,
-    image: 'https://images.unsplash.com/photo-1541877944-ac82a091518a?w=400&h=300&fit=crop',
-    category: 'cases',
-    description: 'Genuine leather case with card slots',
-    inStock: true,
-    rating: 4.6,
-    reviews: 234
-  },
-  {
-    id: 'm8',
-    name: 'Rugged Armor Case',
-    price: 899,
-    image: 'https://images.unsplash.com/photo-1541877944-ac82a091518a?w=400&h=300&fit=crop',
-    category: 'cases',
-    description: 'Military-grade drop protection',
-    inStock: false,
-    rating: 4.8,
-    reviews: 456
-  },
-];
+// Icon mapping for subcategories
+const iconMap: Record<string, any> = {
+  'chargers': Cable,
+  'power-banks': Battery,
+  'powerbanks': Battery,
+  'earbuds': Headphones,
+  'phone-cases': Shield,
+  'cases': Shield,
+  'screen-protectors': Smartphone,
+};
 
 const MobileAccessoriesContent = () => {
   const { addToCart } = useCart();
@@ -117,20 +44,70 @@ const MobileAccessoriesContent = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState('featured');
 
-  const filteredProducts = activeCategory === 'all' 
-    ? products 
-    : products.filter(p => p.category === activeCategory);
+  // Fetch subcategories for Mobile Accessories
+  const { data: subcategories = [] } = useQuery({
+    queryKey: ['mobile-subcategories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('parent_category', 'Mobile Accessories')
+        .order('name');
+      
+      if (error) return [];
+      return data;
+    }
+  });
 
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
+  // Fetch products from database
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ['mobile-products', activeCategory, subcategories],
+    queryFn: async () => {
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          category:categories(id, name, slug)
+        `)
+        .eq('is_active', true);
+
+      if (activeCategory !== 'all') {
+        query = query.eq('category_id', activeCategory);
+      } else if (subcategories.length > 0) {
+        const categoryIds = subcategories.map(s => s.id);
+        query = query.in('category_id', categoryIds);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+      
+      return data.map(p => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        image: p.image_url || 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
+        category: p.category?.slug || 'uncategorized',
+        description: p.description || '',
+        inStock: p.stock > 0,
+        rating: 4.5,
+        reviews: Math.floor(Math.random() * 200) + 50,
+        originalPrice: p.original_price ? Number(p.original_price) : undefined,
+      })) as ProductWithExtras[];
+    },
+    enabled: subcategories.length > 0 || activeCategory !== 'all'
+  });
+
+  // Sort products
+  const sortedProducts = [...products].sort((a, b) => {
     switch (sortBy) {
       case 'price-low': return a.price - b.price;
       case 'price-high': return b.price - a.price;
-      case 'rating': return b.rating - a.rating;
+      case 'rating': return (b.rating || 0) - (a.rating || 0);
       default: return 0;
     }
   });
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: ProductWithExtras) => {
     addToCart(product);
     toast.success(`${product.name} added to cart!`);
   };
@@ -154,6 +131,11 @@ const MobileAccessoriesContent = () => {
         }`}
       />
     ));
+  };
+
+  const getIcon = (slug: string) => {
+    const key = slug.toLowerCase();
+    return iconMap[key] || Grid;
   };
 
   return (
@@ -180,8 +162,19 @@ const MobileAccessoriesContent = () => {
                 Categories
               </h3>
               <div className="space-y-2">
+              <button
+                  onClick={() => setActiveCategory('all')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                    activeCategory === 'all'
+                      ? 'bg-brand-gold/10 text-brand-gold'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  }`}
+                >
+                  <Grid className="w-4 h-4" />
+                  All Products
+                </button>
                 {subcategories.map((cat) => {
-                  const IconComponent = cat.icon;
+                  const IconComponent = getIcon(cat.slug);
                   return (
                     <button
                       key={cat.id}
@@ -203,6 +196,7 @@ const MobileAccessoriesContent = () => {
 
           {/* Main Content */}
           <main className="flex-1">
+            {/* Toolbar */}
             <div className="flex items-center justify-between mb-6">
               <p className="text-muted-foreground">
                 Showing {sortedProducts.length} products
@@ -221,84 +215,109 @@ const MobileAccessoriesContent = () => {
             </div>
 
             {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {sortedProducts.map((product) => (
-                <Card 
-                  key={product.id}
-                  className="group bg-card border-border hover:border-brand-gold/50 transition-all duration-300 overflow-hidden"
-                >
-                  <div className="relative">
-                    <div className="aspect-video overflow-hidden">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
+            {productsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold"></div>
+              </div>
+            ) : sortedProducts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No products found in this category.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {sortedProducts.map((product) => (
+                  <Card 
+                    key={product.id}
+                    className="group bg-card border-border hover:border-brand-gold/50 transition-all duration-300 overflow-hidden"
+                  >
+                    <div className="relative">
+                      <Link to={`/product/${product.id}`}>
+                        <div className="aspect-video overflow-hidden">
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                        </div>
+                      </Link>
 
-                    <div className="absolute top-3 left-3 flex flex-col gap-2">
-                      <Badge className="bg-brand-gold text-brand-dark">
-                        {subcategories.find(c => c.id === product.category)?.name || product.category}
-                      </Badge>
-                      {!product.inStock && (
-                        <Badge variant="destructive">Out of Stock</Badge>
-                      )}
-                    </div>
-
-                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => toggleFavorite(product.id)}
-                        className="w-9 h-9 p-0"
-                      >
-                        <Heart 
-                          className={`w-4 h-4 ${
-                            favorites.includes(product.id) 
-                              ? 'fill-red-500 text-red-500' 
-                              : ''
-                          }`} 
-                        />
-                      </Button>
-                      <Button size="sm" variant="secondary" className="w-9 h-9 p-0">
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <CardContent className="p-4">
-                    <h3 className="font-semibold text-foreground mb-1 group-hover:text-brand-gold transition-colors line-clamp-1">
-                      {product.name}
-                    </h3>
-                    <p className="text-muted-foreground text-sm mb-3 line-clamp-2">
-                      {product.description}
-                    </p>
-
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="flex">{renderStars(product.rating)}</div>
-                      <span className="text-sm text-muted-foreground">
-                        ({product.reviews})
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="text-xl font-bold text-foreground">
-                        ৳{product.price.toLocaleString()}
+                      <div className="absolute top-3 left-3 flex flex-col gap-2">
+                        {product.originalPrice && product.originalPrice > product.price && (
+                          <Badge className="bg-red-500 text-white">
+                            {Math.round((1 - product.price / product.originalPrice) * 100)}% OFF
+                          </Badge>
+                        )}
+                        {!product.inStock && (
+                          <Badge variant="destructive">Out of Stock</Badge>
+                        )}
                       </div>
-                      <Button
-                        onClick={() => handleAddToCart(product)}
-                        disabled={!product.inStock}
-                        size="sm"
-                        className="bg-brand-gold hover:bg-brand-gold-dark text-brand-dark"
-                      >
-                        <ShoppingCart className="w-4 h-4 mr-1" />
-                        Add
-                      </Button>
+
+                      <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => toggleFavorite(product.id)}
+                          className="w-9 h-9 p-0"
+                        >
+                          <Heart 
+                            className={`w-4 h-4 ${
+                              favorites.includes(product.id) 
+                                ? 'fill-red-500 text-red-500' 
+                                : ''
+                            }`} 
+                          />
+                        </Button>
+                        <Link to={`/product/${product.id}`}>
+                          <Button size="sm" variant="secondary" className="w-9 h-9 p-0">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+
+                    <CardContent className="p-4">
+                      <Link to={`/product/${product.id}`}>
+                        <h3 className="font-semibold text-foreground mb-1 group-hover:text-brand-gold transition-colors line-clamp-1">
+                          {product.name}
+                        </h3>
+                      </Link>
+                      <p className="text-muted-foreground text-sm mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="flex">{renderStars(product.rating || 4.5)}</div>
+                        <span className="text-sm text-muted-foreground">
+                          ({product.reviews})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xl font-bold text-foreground">
+                            ৳{product.price.toLocaleString()}
+                          </div>
+                          {product.originalPrice && product.originalPrice > product.price && (
+                            <div className="text-sm text-muted-foreground line-through">
+                              ৳{product.originalPrice.toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => handleAddToCart(product)}
+                          disabled={!product.inStock}
+                          size="sm"
+                          className="bg-brand-gold hover:bg-brand-gold-dark text-brand-dark"
+                        >
+                          <ShoppingCart className="w-4 h-4 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </main>
         </div>
       </div>
