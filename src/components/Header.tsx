@@ -1,20 +1,33 @@
-import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart, Search, Menu, X, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ShoppingCart, Search, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useCart } from '@/context/CartContext';
+import { supabase } from '@/integrations/supabase/client';
 import CartDrawer from './CartDrawer';
 import logo from '@/assets/logo.png';
+
+interface SearchProduct {
+  id: string;
+  name: string;
+  price: number;
+  image_url: string | null;
+}
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchProduct[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const { getTotalItems } = useCart();
   const location = useLocation();
+  const navigate = useNavigate();
+  const searchRef = useRef<HTMLDivElement>(null);
 
-  // Navigation menu items - restructured for TiqBud Bangladesh
+  // Navigation menu items
   const menuItems = [
     { name: 'Home', href: '/' },
     { name: 'PC Accessories', href: '/pc-accessories' },
@@ -23,10 +36,59 @@ const Header = () => {
     { name: 'Contact', href: '/contact' },
   ];
 
-  // Check if current route matches menu item
   const isActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
     return location.pathname.startsWith(href);
+  };
+
+  // Search products from database
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        setShowResults(false);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name, price, image_url')
+          .ilike('name', `%${searchQuery}%`)
+          .eq('is_active', true)
+          .limit(6);
+
+        if (error) throw error;
+        setSearchResults(data || []);
+        setShowResults(true);
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(searchProducts, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  // Close search results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleProductClick = (productId: string) => {
+    setShowResults(false);
+    setSearchQuery('');
+    // Navigate to product detail page when implemented
+    navigate(`/`);
   };
 
   return (
@@ -39,16 +101,12 @@ const Header = () => {
       <header className="bg-card/95 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            {/* Logo and brand name */}
+            {/* Logo */}
             <Link to="/" className="flex items-center space-x-3">
-              <img 
-                src={logo} 
-                alt="TiqBud - Tech & Gadget" 
-                className="h-12 w-auto"
-              />
+              <img src={logo} alt="TiqBud - Tech & Gadget" className="h-12 w-auto" />
             </Link>
 
-            {/* Desktop navigation menu */}
+            {/* Desktop navigation */}
             <nav className="hidden lg:flex items-center space-x-6">
               {menuItems.map((item) => (
                 <Link
@@ -65,8 +123,8 @@ const Header = () => {
               ))}
             </nav>
 
-            {/* Search bar for desktop */}
-            <div className="hidden md:flex items-center space-x-4 flex-1 max-w-sm mx-6">
+            {/* Search bar with dropdown */}
+            <div className="hidden md:flex items-center space-x-4 flex-1 max-w-sm mx-6" ref={searchRef}>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
@@ -74,14 +132,43 @@ const Header = () => {
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => searchQuery.length >= 2 && setShowResults(true)}
                   className="pl-10 bg-secondary border-border focus:border-brand-gold focus:ring-brand-gold"
                 />
+                
+                {/* Search Results Dropdown */}
+                {showResults && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
+                    {isSearching ? (
+                      <div className="p-4 text-center text-muted-foreground">Searching...</div>
+                    ) : searchResults.length > 0 ? (
+                      searchResults.map((product) => (
+                        <button
+                          key={product.id}
+                          onClick={() => handleProductClick(product.id)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-secondary transition-colors text-left"
+                        >
+                          <img
+                            src={product.image_url || '/placeholder.svg'}
+                            alt={product.name}
+                            className="w-10 h-10 object-cover rounded"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
+                            <p className="text-sm text-brand-gold">৳{product.price.toLocaleString()}</p>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-muted-foreground">No products found</div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Cart and mobile menu buttons */}
+            {/* Cart and menu buttons */}
             <div className="flex items-center space-x-2">
-              {/* Cart button with item count */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -96,7 +183,6 @@ const Header = () => {
                 )}
               </Button>
 
-              {/* Mobile menu toggle */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -124,7 +210,6 @@ const Header = () => {
                   />
                 </div>
                 
-                {/* Mobile navigation links */}
                 {menuItems.map((item) => (
                   <Link
                     key={item.name}
@@ -145,7 +230,6 @@ const Header = () => {
         </div>
       </header>
 
-      {/* Cart drawer component */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>
   );

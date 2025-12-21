@@ -17,7 +17,8 @@ const CartDrawer = ({ isOpen, onClose }: CartDrawerProps) => {
       toast.error('Your cart is empty!');
       return;
     }
-    toast.success('Redirecting to checkout...');
+    onClose();
+    window.location.href = '/checkout';
   };
 
   return (
