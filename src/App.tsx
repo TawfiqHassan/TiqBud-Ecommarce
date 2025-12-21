@@ -24,6 +24,10 @@ import Settings from "./pages/admin/Settings";
 import Categories from "./pages/admin/Categories";
 import Users from "./pages/admin/Users";
 import SiteContent from "./pages/admin/SiteContent";
+import BlogPosts from "./pages/admin/BlogPosts";
+import Reviews from "./pages/admin/Reviews";
+import NavbarSettings from "./pages/admin/NavbarSettings";
+import Account from "./pages/Account";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +46,7 @@ const App = () => (
             <Route path="/contact" element={<Contact />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/account" element={<Account />} />
             
             {/* Admin routes */}
             <Route path="/admin" element={<AdminLayout />}>
@@ -52,6 +57,9 @@ const App = () => (
               <Route path="customers" element={<Customers />} />
               <Route path="users" element={<Users />} />
               <Route path="site-content" element={<SiteContent />} />
+              <Route path="blog-posts" element={<BlogPosts />} />
+              <Route path="reviews" element={<Reviews />} />
+              <Route path="navbar" element={<NavbarSettings />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
             </Route>

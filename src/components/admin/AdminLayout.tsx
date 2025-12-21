@@ -14,7 +14,9 @@ import {
   BarChart3,
   FolderOpen,
   UserCog,
-  Layout
+  Layout,
+  FileText,
+  Star
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,7 +43,10 @@ const AdminLayout: React.FC = () => {
     { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/admin/customers', icon: Users, label: 'Customers' },
     { path: '/admin/users', icon: UserCog, label: 'User Management' },
+    { path: '/admin/blog-posts', icon: FileText, label: 'Blog Posts' },
+    { path: '/admin/reviews', icon: Star, label: 'Reviews' },
     { path: '/admin/site-content', icon: Layout, label: 'Site Content' },
+    { path: '/admin/navbar', icon: Menu, label: 'Navbar' },
     { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];
