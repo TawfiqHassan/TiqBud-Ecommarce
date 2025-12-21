@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -29,8 +29,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, ExternalLink, RefreshCw, Building2, Download, Zap, Eye, EyeOff } from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Plus, Pencil, Trash2, ExternalLink, RefreshCw, Building2, Download, Zap, Eye, EyeOff, HelpCircle, CheckCircle2, ArrowRight, Package } from 'lucide-react';
 import { toast } from 'sonner';
+import ProductImportDialog from '@/components/admin/ProductImportDialog';
 
 interface Supplier {
   id: string;
@@ -57,6 +64,9 @@ const Suppliers = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [testingApi, setTestingApi] = useState<string | null>(null);
   const [fetchingProducts, setFetchingProducts] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [fetchedProducts, setFetchedProducts] = useState<any[]>([]);
+  const [currentSupplierName, setCurrentSupplierName] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     contact_email: '',
@@ -81,6 +91,19 @@ const Suppliers = () => {
       
       if (error) throw error;
       return data as Supplier[];
+    },
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories-for-import'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -229,10 +252,11 @@ const Suppliers = () => {
 
       if (error) throw error;
 
-      if (data.success) {
+      if (data.success && data.products) {
+        setFetchedProducts(data.products);
+        setCurrentSupplierName(supplier.name);
+        setImportDialogOpen(true);
         toast.success(`Fetched ${data.total} products from ${data.supplier}`);
-        console.log('Products:', data.products);
-        // Here you could open a dialog to preview/import the products
       } else {
         toast.error(data.error || 'Failed to fetch products');
       }
@@ -307,6 +331,57 @@ const Suppliers = () => {
 
   return (
     <div className="space-y-6">
+      {/* Tutorial Card */}
+      <Card className="bg-gradient-to-r from-brand-gold/10 to-brand-gold/5 border-brand-gold/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <HelpCircle className="w-5 h-5 text-brand-gold" />
+            How to Add External Supplier APIs
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="tutorial" className="border-none">
+              <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground py-2">
+                View step-by-step guide
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-brand-gold mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Step 1: Get API credentials from your supplier</p>
+                      <p className="text-muted-foreground">Contact the supplier and request API access. They'll provide an API endpoint URL and API key.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-brand-gold mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Step 2: Add the supplier</p>
+                      <p className="text-muted-foreground">Click "Add Supplier", enter their details, API endpoint (e.g., https://api.supplier.com/products), and API key.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-brand-gold mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Step 3: Test the connection</p>
+                      <p className="text-muted-foreground">Click "Test" to verify the API works. You'll see a success message if connected.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Package className="w-5 h-5 text-brand-gold mt-0.5" />
+                    <div>
+                      <p className="font-medium text-foreground">Step 4: Fetch and import products</p>
+                      <p className="text-muted-foreground">Click "Fetch" to retrieve products, then select which ones to import to your store.</p>
+                    </div>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Suppliers</h1>
@@ -662,6 +737,14 @@ const Suppliers = () => {
           </Table>
         </CardContent>
       </Card>
+      {/* Product Import Dialog */}
+      <ProductImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        products={fetchedProducts}
+        supplierName={currentSupplierName}
+        categories={categories}
+      />
     </div>
   );
 };

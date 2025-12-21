@@ -43,7 +43,7 @@ const SocialShare = ({ url, title, description }: SocialShareProps) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="secondary" size="sm" className="gap-2 h-12 px-4 bg-secondary text-foreground hover:bg-muted border border-border">
           <Share2 className="w-4 h-4" />
           Share
         </Button>
