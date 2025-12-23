@@ -24,21 +24,11 @@ const signupSchema = z.object({
   phone: z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15),
   city: z.string().trim().min(2, 'City is required').max(100),
   password: z.string().min(6, 'Password must be at least 6 characters').max(72),
-  confirmPassword: z.string(),
-  securityQuestion: z.string().min(1, 'Please select a security question'),
-  securityAnswer: z.string().trim().min(2, 'Security answer is required').max(100)
+  confirmPassword: z.string()
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"]
 });
-
-const securityQuestions = [
-  "What is your mother's maiden name?",
-  "What was the name of your first pet?",
-  "What city were you born in?",
-  "What is your favorite movie?",
-  "What was the name of your elementary school?"
-];
 
 const Auth: React.FC = () => {
   const navigate = useNavigate();
@@ -65,8 +55,6 @@ const Auth: React.FC = () => {
   const [signupCity, setSignupCity] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
-  const [signupSecurityQuestion, setSignupSecurityQuestion] = useState('');
-  const [signupSecurityAnswer, setSignupSecurityAnswer] = useState('');
 
   useEffect(() => {
     if (user && !isLoading) {
@@ -159,9 +147,7 @@ const Auth: React.FC = () => {
         phone: signupPhone,
         city: signupCity,
         password: signupPassword,
-        confirmPassword: signupConfirmPassword,
-        securityQuestion: signupSecurityQuestion,
-        securityAnswer: signupSecurityAnswer
+        confirmPassword: signupConfirmPassword
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -175,9 +161,7 @@ const Auth: React.FC = () => {
       fullName: signupFullName,
       phone: signupPhone,
       city: signupCity,
-      username: signupUsername,
-      securityQuestion: signupSecurityQuestion,
-      securityAnswer: signupSecurityAnswer
+      username: signupUsername
     });
     setIsSubmitting(false);
     
@@ -424,31 +408,6 @@ const Auth: React.FC = () => {
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label>Security Question</Label>
-                  <Select value={signupSecurityQuestion} onValueChange={setSignupSecurityQuestion}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a security question" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {securityQuestions.map((q) => (
-                        <SelectItem key={q} value={q}>{q}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="signup-answer">Security Answer</Label>
-                  <Input
-                    id="signup-answer"
-                    type="text"
-                    placeholder="Your answer"
-                    value={signupSecurityAnswer}
-                    onChange={(e) => setSignupSecurityAnswer(e.target.value)}
-                    required
-                  />
-                </div>
                 
                 <Button 
                   type="submit" 
