@@ -19,8 +19,6 @@ interface SignupMetadata {
   phone: string;
   city: string;
   username: string;
-  securityQuestion: string;
-  securityAnswer: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -118,9 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: metadata?.fullName,
           phone: metadata?.phone,
           city: metadata?.city,
-          username: metadata?.username,
-          security_question: metadata?.securityQuestion,
-          security_answer: metadata?.securityAnswer
+          username: metadata?.username
         }
       }
     });

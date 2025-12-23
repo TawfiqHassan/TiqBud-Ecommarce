@@ -47,6 +47,13 @@ const OrderInvoice: React.FC<OrderInvoiceProps> = ({ order, items, isOpen, onClo
     day: 'numeric'
   });
 
+  // HTML escape function to prevent XSS
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
   const handlePrint = () => {
     const printContent = invoiceRef.current;
     if (!printContent) return;
@@ -54,11 +61,32 @@ const OrderInvoice: React.FC<OrderInvoiceProps> = ({ order, items, isOpen, onClo
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    // Clone the content and sanitize it
+    const clonedContent = printContent.cloneNode(true) as HTMLElement;
+    
+    // Remove any script tags that might have been injected
+    const scripts = clonedContent.querySelectorAll('script');
+    scripts.forEach(script => script.remove());
+    
+    // Remove event handlers and dangerous attributes
+    const allElements = clonedContent.querySelectorAll('*');
+    allElements.forEach(el => {
+      // Remove all event handler attributes
+      const attributes = Array.from(el.attributes);
+      attributes.forEach(attr => {
+        if (attr.name.startsWith('on') || attr.name === 'href' && attr.value.startsWith('javascript:')) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+
+    const sanitizedHTML = clonedContent.innerHTML;
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Invoice #${order.id.slice(0, 8).toUpperCase()}</title>
+          <title>Invoice #${escapeHtml(order.id.slice(0, 8).toUpperCase())}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
@@ -94,7 +122,7 @@ const OrderInvoice: React.FC<OrderInvoiceProps> = ({ order, items, isOpen, onClo
           </style>
         </head>
         <body>
-          ${printContent.innerHTML}
+          ${sanitizedHTML}
         </body>
       </html>
     `);
