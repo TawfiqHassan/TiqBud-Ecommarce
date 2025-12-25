@@ -34,6 +34,7 @@ import Account from "./pages/Account";
 import Coupons from "./pages/admin/Coupons";
 import Inventory from "./pages/admin/Inventory";
 import Suppliers from "./pages/admin/Suppliers";
+import DesignSettings from "./pages/admin/DesignSettings";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,7 @@ const App = () => (
               <Route path="inventory" element={<Inventory />} />
               <Route path="sales-reports" element={<Analytics />} /> {/* Redirect old route */}
               <Route path="suppliers" element={<Suppliers />} />
+              <Route path="design" element={<DesignSettings />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />

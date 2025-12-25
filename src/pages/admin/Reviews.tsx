@@ -48,24 +48,41 @@ const AdminReviews: React.FC = () => {
     comment: ''
   });
 
-  const { data: reviews, isLoading } = useQuery({
+  const { data: reviews, isLoading, error: queryError } = useQuery({
     queryKey: ['admin-reviews'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch reviews without complex joins first
+      const { data: reviewsData, error: reviewsError } = await supabase
         .from('product_reviews')
-        .select(`
-          *,
-          products:product_id (name),
-          profiles:user_id (email)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      
-      return data.map((r: any) => ({
+      if (reviewsError) {
+        console.error('Error fetching reviews:', reviewsError);
+        throw reviewsError;
+      }
+
+      // Fetch products for names
+      const productIds = [...new Set(reviewsData?.map(r => r.product_id) || [])];
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, name')
+        .in('id', productIds);
+
+      // Fetch profiles for emails
+      const userIds = [...new Set(reviewsData?.map(r => r.user_id) || [])];
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, email')
+        .in('user_id', userIds);
+
+      const productMap = new Map(productsData?.map(p => [p.id, p.name]) || []);
+      const profileMap = new Map(profilesData?.map(p => [p.user_id, p.email]) || []);
+
+      return (reviewsData || []).map(r => ({
         ...r,
-        product_name: r.products?.name || 'Unknown Product',
-        user_email: r.profiles?.email || 'Unknown User'
+        product_name: productMap.get(r.product_id) || 'Unknown Product',
+        user_email: profileMap.get(r.user_id) || 'Unknown User'
       })) as Review[];
     }
   });
