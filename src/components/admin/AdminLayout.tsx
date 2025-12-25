@@ -19,7 +19,8 @@ import {
   Star,
   Tag,
   AlertTriangle,
-  Truck
+  Truck,
+  Palette
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -53,6 +54,7 @@ const AdminLayout: React.FC = () => {
     { path: '/admin/reviews', icon: Star, label: 'Reviews' },
     { path: '/admin/site-content', icon: Layout, label: 'Site Content' },
     { path: '/admin/navbar', icon: Menu, label: 'Navbar' },
+    { path: '/admin/design', icon: Palette, label: 'Design Settings' },
     { path: '/admin/analytics', icon: BarChart3, label: 'Analytics & Reports' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];
