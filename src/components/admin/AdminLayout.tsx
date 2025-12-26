@@ -20,7 +20,10 @@ import {
   Tag,
   AlertTriangle,
   Truck,
-  Palette
+  Palette,
+  Zap,
+  RotateCcw,
+  MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -46,10 +49,13 @@ const AdminLayout: React.FC = () => {
     { path: '/admin/categories', icon: FolderOpen, label: 'Categories' },
     { path: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/admin/inventory', icon: AlertTriangle, label: 'Inventory Alerts' },
+    { path: '/admin/returns', icon: RotateCcw, label: 'Returns & Refunds' },
     { path: '/admin/customers', icon: Users, label: 'Customers' },
     { path: '/admin/users', icon: UserCog, label: 'User Management' },
     { path: '/admin/suppliers', icon: Truck, label: 'Suppliers' },
     { path: '/admin/coupons', icon: Tag, label: 'Coupons' },
+    { path: '/admin/flash-sales', icon: Zap, label: 'Flash Sales' },
+    { path: '/admin/shipping-zones', icon: MapPin, label: 'Shipping Zones' },
     { path: '/admin/blog-posts', icon: FileText, label: 'Blog Posts' },
     { path: '/admin/reviews', icon: Star, label: 'Reviews' },
     { path: '/admin/site-content', icon: Layout, label: 'Site Content' },

@@ -23,6 +23,8 @@ import { toast } from 'sonner';
 import { Package, MapPin, Heart, User, Plus, Trash2, Edit, Camera, Save, ChevronDown, ChevronUp, Lock, RefreshCcw, FileText } from 'lucide-react';
 import OrderStatusTimeline from '@/components/OrderStatusTimeline';
 import OrderInvoice from '@/components/OrderInvoice';
+import OrderCancellation from '@/components/OrderCancellation';
+import ReturnRequest from '@/components/ReturnRequest';
 import { CartProvider, useCart } from '@/context/CartContext';
 
 interface Order {
@@ -825,10 +827,11 @@ const AccountContent: React.FC = () => {
                                 </div>
                               </div>
                               
-                              {/* Invoice & Reorder Buttons */}
-                              <div className="mt-4 pt-4 border-t border-border flex gap-2">
+                              {/* Invoice, Cancellation & Reorder Buttons */}
+                              <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-2">
                                 <Button 
                                   variant="outline"
+                                  size="sm"
                                   onClick={async () => {
                                     const { data: items } = await supabase
                                       .from('order_items')
@@ -837,15 +840,27 @@ const AccountContent: React.FC = () => {
                                     setInvoiceItems(items || []);
                                     setInvoiceOrder(order);
                                   }}
-                                  className="flex-1"
                                 >
                                   <FileText className="h-4 w-4 mr-2" />
                                   Invoice
                                 </Button>
+                                
+                                <OrderCancellation 
+                                  orderId={order.id} 
+                                  orderStatus={order.status} 
+                                />
+                                
+                                <ReturnRequest 
+                                  orderId={order.id} 
+                                  orderStatus={order.status}
+                                  orderTotal={order.total}
+                                />
+                                
                                 {order.status === 'delivered' && (
                                   <Button 
+                                    size="sm"
                                     onClick={() => handleReorder(order.id)}
-                                    className="flex-1 bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
+                                    className="bg-brand-gold hover:bg-brand-gold/90 text-brand-dark"
                                   >
                                     <RefreshCcw className="h-4 w-4 mr-2" />
                                     Reorder
