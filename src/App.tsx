@@ -35,6 +35,9 @@ import Coupons from "./pages/admin/Coupons";
 import Inventory from "./pages/admin/Inventory";
 import Suppliers from "./pages/admin/Suppliers";
 import DesignSettings from "./pages/admin/DesignSettings";
+import ShippingZones from "./pages/admin/ShippingZones";
+import FlashSales from "./pages/admin/FlashSales";
+import Returns from "./pages/admin/Returns";
 
 const queryClient = new QueryClient();
 
@@ -64,19 +67,21 @@ const App = () => (
               <Route path="products" element={<Products />} />
               <Route path="categories" element={<Categories />} />
               <Route path="orders" element={<Orders />} />
+              <Route path="inventory" element={<Inventory />} />
               <Route path="customers" element={<Customers />} />
               <Route path="users" element={<Users />} />
-              <Route path="site-content" element={<SiteContent />} />
+              <Route path="suppliers" element={<Suppliers />} />
+              <Route path="coupons" element={<Coupons />} />
+              <Route path="shipping-zones" element={<ShippingZones />} />
+              <Route path="flash-sales" element={<FlashSales />} />
+              <Route path="returns" element={<Returns />} />
               <Route path="blog-posts" element={<BlogPosts />} />
               <Route path="reviews" element={<Reviews />} />
+              <Route path="site-content" element={<SiteContent />} />
               <Route path="navbar" element={<NavbarSettings />} />
+              <Route path="design" element={<DesignSettings />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />
-              <Route path="coupons" element={<Coupons />} />
-              <Route path="inventory" element={<Inventory />} />
-              <Route path="sales-reports" element={<Analytics />} /> {/* Redirect old route */}
-              <Route path="suppliers" element={<Suppliers />} />
-              <Route path="design" element={<DesignSettings />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />

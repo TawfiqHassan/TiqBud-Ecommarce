@@ -17,6 +17,7 @@ import SocialShare from '@/components/SocialShare';
 import RelatedProducts from '@/components/RelatedProducts';
 import Breadcrumbs from '@/components/Breadcrumbs';
 import ImageGallery from '@/components/ImageGallery';
+import StockIndicator from '@/components/StockIndicator';
 
 const ProductDetailContent = () => {
   const { id } = useParams<{ id: string }>();
@@ -146,20 +147,8 @@ const ProductDetailContent = () => {
               )}
             </div>
 
-            {/* Stock Status */}
-            <div className="flex items-center gap-2">
-              {product.stock > 0 ? (
-                <>
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-green-500 font-medium">In Stock ({product.stock} available)</span>
-                </>
-              ) : (
-                <>
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  <span className="text-red-500 font-medium">Out of Stock</span>
-                </>
-              )}
-            </div>
+            {/* Stock Status with Urgency Indicator */}
+            <StockIndicator stock={product.stock} size="md" />
 
             <Separator />
 
