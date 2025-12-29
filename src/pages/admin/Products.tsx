@@ -38,11 +38,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Package, Upload, Download, FileSpreadsheet, ChevronDown, Copy, MoreHorizontal } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Package, Upload, Download, FileSpreadsheet, ChevronDown, Copy, MoreHorizontal, Palette } from 'lucide-react';
 import { useCategories } from '@/hooks/useProducts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ProductUrlScraper } from '@/components/admin/ProductUrlScraper';
+import ProductVariantsDialog from '@/components/admin/ProductVariantsDialog';
 
 interface Product {
   id: string;
@@ -87,6 +88,7 @@ const AdminProducts: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [bulkEditField, setBulkEditField] = useState<'stock' | 'price' | 'status' | 'category' | ''>('');
   const [bulkEditValue, setBulkEditValue] = useState('');
+  const [variantsDialogProduct, setVariantsDialogProduct] = useState<Product | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
@@ -1073,6 +1075,10 @@ const AdminProducts: React.FC = () => {
                           <Pencil className="h-4 w-4 mr-2" />
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setVariantsDialogProduct(product)}>
+                          <Palette className="h-4 w-4 mr-2" />
+                          Manage Variants
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => duplicateMutation.mutate(product)}>
                           <Copy className="h-4 w-4 mr-2" />
                           Duplicate
@@ -1104,6 +1110,17 @@ const AdminProducts: React.FC = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Product Variants Dialog */}
+      {variantsDialogProduct && (
+        <ProductVariantsDialog
+          productId={variantsDialogProduct.id}
+          productName={variantsDialogProduct.name}
+          basePrice={variantsDialogProduct.price}
+          open={!!variantsDialogProduct}
+          onOpenChange={(open) => !open && setVariantsDialogProduct(null)}
+        />
+      )}
     </div>
   );
 };
