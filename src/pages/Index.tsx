@@ -1,4 +1,5 @@
 import Header from '@/components/Header';
+import FlashSaleBanner from '@/components/FlashSaleBanner';
 import Hero from '@/components/Hero';
 import ProductCategories from '@/components/ProductCategories';
 import FeaturedProducts from '@/components/FeaturedProducts';
@@ -13,6 +14,9 @@ const Index = () => {
       <div className="min-h-screen bg-background dark">
         {/* Header with navigation and cart */}
         <Header />
+        
+        {/* Flash sale banner */}
+        <FlashSaleBanner />
         
         {/* Hero section with main banner */}
         <Hero />
