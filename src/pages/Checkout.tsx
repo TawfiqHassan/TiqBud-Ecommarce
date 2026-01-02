@@ -13,6 +13,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
+import { useShippingZones, getShippingRateForCity } from '@/hooks/useShippingZones';
 
 interface Coupon {
   id: string;
@@ -29,6 +30,7 @@ const CheckoutContent = () => {
   const navigate = useNavigate();
   const { cartItems, getTotalPrice, clearCart } = useCart();
   const { user } = useAuth();
+  const { data: shippingZones = [] } = useShippingZones();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -72,7 +74,10 @@ const CheckoutContent = () => {
   }, [user]);
 
   const subtotal = getTotalPrice();
-  const shippingCost = subtotal >= 5000 ? 0 : 100;
+  
+  // Dynamic shipping calculation based on city and shipping zones
+  const shippingInfo = getShippingRateForCity(formData.city, shippingZones, subtotal);
+  const shippingCost = shippingInfo.rate;
   const total = subtotal - discount + shippingCost;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -523,12 +528,22 @@ const CheckoutContent = () => {
                   </div>
                 )}
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Shipping</span>
-                  <span>{shippingCost === 0 ? 'Free' : `৳${shippingCost}`}</span>
+                  <span className="flex flex-col">
+                    <span>Shipping</span>
+                    {shippingInfo.zone && (
+                      <span className="text-xs">{shippingInfo.zone.name}</span>
+                    )}
+                  </span>
+                  <span className="flex flex-col items-end">
+                    <span>{shippingCost === 0 ? 'Free' : `৳${shippingCost}`}</span>
+                    {shippingInfo.isFreeShipping && (
+                      <span className="text-xs text-green-500">Free shipping applied!</span>
+                    )}
+                  </span>
                 </div>
-                {subtotal < 5000 && (
+                {shippingInfo.zone?.free_shipping_threshold && subtotal < shippingInfo.zone.free_shipping_threshold && (
                   <p className="text-xs text-muted-foreground">
-                    Free shipping on orders over ৳5,000
+                    Free shipping on orders over ৳{shippingInfo.zone.free_shipping_threshold.toLocaleString()} for {shippingInfo.zone.name}
                   </p>
                 )}
                 <div className="flex justify-between text-lg font-bold text-foreground pt-2 border-t border-border">
